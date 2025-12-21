@@ -1,5 +1,5 @@
 """
-ST7701S Minimal Test
+ST7701 Minimal Test
 Quick sanity check that the display is working.
 
 Run this first before the full example.
@@ -62,6 +62,6 @@ time.sleep(1)
 print("Draw white rectangle in center...")
 display.fill(st7701.BLACK)
 w, h = display.width(), display.height()
-display.fill_rect(w//4, h//4, w//2, h//2, st7701s.WHITE)
+display.fill_rect(w//4, h//4, w//2, h//2, st7701.WHITE)
 
 print("Done! If you see colors, the display is working.")
