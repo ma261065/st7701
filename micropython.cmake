@@ -2,4 +2,4 @@
 # the individual modules we want to include.
 # Paths are absolute, and ${CMAKE_CURRENT_LIST_DIR} can be
 # used to prefix subdirectories.
-include(${CMAKE_CURRENT_LIST_DIR}/st7701s/micropython.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/st7701/micropython.cmake)
