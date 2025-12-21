@@ -1,5 +1,5 @@
 /*
- * ST7701S RGB LCD Driver for MicroPython
+ * ST7701 RGB LCD Driver for MicroPython
  * 
  * Targets ESP32-S3 with esp_lcd RGB panel interface
  * Display: 480x854 18-bit RGB (wired as 16-bit RGB565)
@@ -17,7 +17,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-static const char *TAG = "ST7701S";
+static const char *TAG = "ST7701";
 
 // Display dimensions
 #define LCD_H_RES 480
@@ -31,10 +31,10 @@ static const char *TAG = "ST7701S";
 #define COLOR_BLUE    0x001F
 
 // ============================================================================
-// ST7701S Display Object
+// ST7701 Display Object
 // ============================================================================
 
-typedef struct _st7701s_obj_t {
+typedef struct _st7701_obj_t {
     mp_obj_base_t base;
     esp_lcd_panel_handle_t panel_handle;
     uint16_t *framebuffer;
@@ -54,15 +54,15 @@ typedef struct _st7701s_obj_t {
     gpio_num_t vsync;
     gpio_num_t de;
     gpio_num_t data[16];  // RGB565: B0-B4, G0-G5, R0-R4
-} st7701s_obj_t;
+} st7701_obj_t;
 
-const mp_obj_type_t st7701s_type;
+const mp_obj_type_t st7701_type;
 
 // ============================================================================
 // 9-bit SPI bit-bang for init sequence
 // ============================================================================
 
-static void spi_write_9bit(st7701s_obj_t *self, bool is_data, uint8_t val) {
+static void spi_write_9bit(st7701_obj_t *self, bool is_data, uint8_t val) {
     gpio_set_level(self->spi_cs, 0);
     esp_rom_delay_us(1);
     
@@ -88,19 +88,19 @@ static void spi_write_9bit(st7701s_obj_t *self, bool is_data, uint8_t val) {
     esp_rom_delay_us(1);
 }
 
-static inline void lcd_cmd(st7701s_obj_t *self, uint8_t cmd) {
+static inline void lcd_cmd(st7701_obj_t *self, uint8_t cmd) {
     spi_write_9bit(self, false, cmd);
 }
 
-static inline void lcd_data(st7701s_obj_t *self, uint8_t data) {
+static inline void lcd_data(st7701_obj_t *self, uint8_t data) {
     spi_write_9bit(self, true, data);
 }
 
 // ============================================================================
-// ST7701S Initialization Sequence (from vendor)
+// ST7701 Initialization Sequence (from vendor)
 // ============================================================================
 
-static void st7701s_init_sequence(st7701s_obj_t *self) {
+static void st7701_init_sequence(st7701_obj_t *self) {
     // Hardware reset
     gpio_set_level(self->reset, 1);
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -235,14 +235,14 @@ static void st7701s_init_sequence(st7701s_obj_t *self) {
     lcd_cmd(self, 0x29);
     vTaskDelay(pdMS_TO_TICKS(20));
     
-    ESP_LOGI(TAG, "ST7701S init sequence complete");
+    ESP_LOGI(TAG, "ST7701 init sequence complete");
 }
 
 // ============================================================================
 // GPIO Setup
 // ============================================================================
 
-static void setup_spi_gpio(st7701s_obj_t *self) {
+static void setup_spi_gpio(st7701_obj_t *self) {
     gpio_config_t io_conf = {
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
@@ -262,7 +262,7 @@ static void setup_spi_gpio(st7701s_obj_t *self) {
     gpio_set_level(self->reset, 1);
 }
 
-static void setup_backlight(st7701s_obj_t *self) {
+static void setup_backlight(st7701_obj_t *self) {
     if (self->backlight >= 0) {
         gpio_config_t io_conf = {
             .mode = GPIO_MODE_OUTPUT,
@@ -277,7 +277,7 @@ static void setup_backlight(st7701s_obj_t *self) {
 // RGB Panel Setup via esp_lcd
 // ============================================================================
 
-static esp_err_t setup_rgb_panel(st7701s_obj_t *self) {
+static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
     ESP_LOGI(TAG, "Setting up RGB panel %dx%d", self->width, self->height);
     
     esp_lcd_rgb_panel_config_t panel_config = {
@@ -340,14 +340,14 @@ static esp_err_t setup_rgb_panel(st7701s_obj_t *self) {
 // MicroPython Interface
 // ============================================================================
 
-// Constructor: ST7701S(spi_cs, spi_clk, spi_mosi, reset, backlight,
+// Constructor: ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
 //                      pclk, hsync, vsync, de, data_pins)
-static mp_obj_t st7701s_make_new(const mp_obj_type_t *type, size_t n_args, 
+static mp_obj_t st7701_make_new(const mp_obj_type_t *type, size_t n_args, 
                                   size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 10, 10, false);
     
-    st7701s_obj_t *self = m_new_obj(st7701s_obj_t);
-    self->base.type = &st7701s_type;
+    st7701_obj_t *self = m_new_obj(st7701_obj_t);
+    self->base.type = &st7701_type;
     self->width = LCD_H_RES;
     self->height = LCD_V_RES;
     self->panel_handle = NULL;
@@ -383,16 +383,16 @@ static mp_obj_t st7701s_make_new(const mp_obj_type_t *type, size_t n_args,
 }
 
 // init() - Initialize the display
-static mp_obj_t st7701s_init(mp_obj_t self_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_init(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
-    ESP_LOGI(TAG, "Initializing ST7701S %dx%d", self->width, self->height);
+    ESP_LOGI(TAG, "Initializing ST7701 %dx%d", self->width, self->height);
     
     // Setup GPIO for SPI init
     setup_spi_gpio(self);
     
-    // Run ST7701S init sequence via 9-bit SPI
-    st7701s_init_sequence(self);
+    // Run ST7701 init sequence via 9-bit SPI
+    st7701_init_sequence(self);
     
     // Setup RGB panel
     setup_rgb_panel(self);
@@ -403,15 +403,15 @@ static mp_obj_t st7701s_init(mp_obj_t self_in) {
     // Clear screen to black
     memset(self->framebuffer, 0, self->width * self->height * 2);
     
-    ESP_LOGI(TAG, "ST7701S ready");
+    ESP_LOGI(TAG, "ST7701 ready");
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701s_init_obj, st7701s_init);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_init_obj, st7701_init);
 
 // fill(color) - Fill entire screen with RGB565 color
-static mp_obj_t st7701s_fill(mp_obj_t self_in, mp_obj_t color_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_fill(mp_obj_t self_in, mp_obj_t color_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     uint16_t color = mp_obj_get_int(color_in);
     
     if (self->framebuffer == NULL) {
@@ -425,11 +425,11 @@ static mp_obj_t st7701s_fill(mp_obj_t self_in, mp_obj_t color_in) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(st7701s_fill_obj, st7701s_fill);
+static MP_DEFINE_CONST_FUN_OBJ_2(st7701_fill_obj, st7701_fill);
 
 // pixel(x, y, color) - Set single pixel
-static mp_obj_t st7701s_pixel(size_t n_args, const mp_obj_t *args) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+static mp_obj_t st7701_pixel(size_t n_args, const mp_obj_t *args) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int x = mp_obj_get_int(args[1]);
     int y = mp_obj_get_int(args[2]);
     uint16_t color = mp_obj_get_int(args[3]);
@@ -444,11 +444,11 @@ static mp_obj_t st7701s_pixel(size_t n_args, const mp_obj_t *args) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_pixel_obj, 4, 4, st7701s_pixel);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_pixel_obj, 4, 4, st7701_pixel);
 
 // fill_rect(x, y, w, h, color) - Fill rectangle
-static mp_obj_t st7701s_fill_rect(size_t n_args, const mp_obj_t *args) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+static mp_obj_t st7701_fill_rect(size_t n_args, const mp_obj_t *args) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int x = mp_obj_get_int(args[1]);
     int y = mp_obj_get_int(args[2]);
     int w = mp_obj_get_int(args[3]);
@@ -476,11 +476,11 @@ static mp_obj_t st7701s_fill_rect(size_t n_args, const mp_obj_t *args) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_fill_rect_obj, 6, 6, st7701s_fill_rect);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_fill_rect_obj, 6, 6, st7701_fill_rect);
 
 // hline(x, y, w, color) - Horizontal line
-static mp_obj_t st7701s_hline(size_t n_args, const mp_obj_t *args) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+static mp_obj_t st7701_hline(size_t n_args, const mp_obj_t *args) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int x = mp_obj_get_int(args[1]);
     int y = mp_obj_get_int(args[2]);
     int w = mp_obj_get_int(args[3]);
@@ -501,11 +501,11 @@ static mp_obj_t st7701s_hline(size_t n_args, const mp_obj_t *args) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_hline_obj, 5, 5, st7701s_hline);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_hline_obj, 5, 5, st7701_hline);
 
 // vline(x, y, h, color) - Vertical line
-static mp_obj_t st7701s_vline(size_t n_args, const mp_obj_t *args) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+static mp_obj_t st7701_vline(size_t n_args, const mp_obj_t *args) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int x = mp_obj_get_int(args[1]);
     int y = mp_obj_get_int(args[2]);
     int h = mp_obj_get_int(args[3]);
@@ -525,11 +525,11 @@ static mp_obj_t st7701s_vline(size_t n_args, const mp_obj_t *args) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_vline_obj, 5, 5, st7701s_vline);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_vline_obj, 5, 5, st7701_vline);
 
 // blit(buffer, x, y, w, h) - Blit a buffer (bytes/bytearray) to screen
-static mp_obj_t st7701s_blit(size_t n_args, const mp_obj_t *args) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+static mp_obj_t st7701_blit(size_t n_args, const mp_obj_t *args) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(args[1], &bufinfo, MP_BUFFER_READ);
     
@@ -586,11 +586,11 @@ static mp_obj_t st7701s_blit(size_t n_args, const mp_obj_t *args) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_blit_obj, 6, 6, st7701s_blit);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_blit_obj, 6, 6, st7701_blit);
 
 // backlight(on) - Control backlight (0=off, 1=on)
-static mp_obj_t st7701s_backlight(mp_obj_t self_in, mp_obj_t on_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_backlight(mp_obj_t self_in, mp_obj_t on_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
     if (self->backlight >= 0) {
         gpio_set_level(self->backlight, mp_obj_is_true(on_in) ? 1 : 0);
@@ -598,25 +598,25 @@ static mp_obj_t st7701s_backlight(mp_obj_t self_in, mp_obj_t on_in) {
     
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(st7701s_backlight_obj, st7701s_backlight);
+static MP_DEFINE_CONST_FUN_OBJ_2(st7701_backlight_obj, st7701_backlight);
 
 // width() - Get display width
-static mp_obj_t st7701s_width(mp_obj_t self_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_width(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     return mp_obj_new_int(self->width);
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701s_width_obj, st7701s_width);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_width_obj, st7701_width);
 
 // height() - Get display height
-static mp_obj_t st7701s_height(mp_obj_t self_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_height(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     return mp_obj_new_int(self->height);
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701s_height_obj, st7701s_height);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_height_obj, st7701_height);
 
 // framebuffer() - Get direct access to framebuffer as memoryview
-static mp_obj_t st7701s_framebuffer_obj(mp_obj_t self_in) {
-    st7701s_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t st7701_framebuffer_obj(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
     if (self->framebuffer == NULL) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
@@ -625,10 +625,10 @@ static mp_obj_t st7701s_framebuffer_obj(mp_obj_t self_in) {
     size_t size = self->width * self->height * 2;
     return mp_obj_new_memoryview('B', size, self->framebuffer);
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701s_framebuffer_method, st7701s_framebuffer_obj);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_framebuffer_method, st7701_framebuffer_obj);
 
 // color565(r, g, b) - Convert RGB888 to RGB565
-static mp_obj_t st7701s_color565(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t st7701_color565(size_t n_args, const mp_obj_t *args) {
     (void)args[0];  // self, unused
     int r = mp_obj_get_int(args[1]) & 0xFF;
     int g = mp_obj_get_int(args[2]) & 0xFF;
@@ -637,25 +637,25 @@ static mp_obj_t st7701s_color565(size_t n_args, const mp_obj_t *args) {
     uint16_t color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
     return mp_obj_new_int(color);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701s_color565_obj, 4, 4, st7701s_color565);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_color565_obj, 4, 4, st7701_color565);
 
 // ============================================================================
 // Module Registration
 // ============================================================================
 
-static const mp_rom_map_elem_t st7701s_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_init),        MP_ROM_PTR(&st7701s_init_obj) },
-    { MP_ROM_QSTR(MP_QSTR_fill),        MP_ROM_PTR(&st7701s_fill_obj) },
-    { MP_ROM_QSTR(MP_QSTR_pixel),       MP_ROM_PTR(&st7701s_pixel_obj) },
-    { MP_ROM_QSTR(MP_QSTR_fill_rect),   MP_ROM_PTR(&st7701s_fill_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_hline),       MP_ROM_PTR(&st7701s_hline_obj) },
-    { MP_ROM_QSTR(MP_QSTR_vline),       MP_ROM_PTR(&st7701s_vline_obj) },
-    { MP_ROM_QSTR(MP_QSTR_blit),        MP_ROM_PTR(&st7701s_blit_obj) },
-    { MP_ROM_QSTR(MP_QSTR_backlight),   MP_ROM_PTR(&st7701s_backlight_obj) },
-    { MP_ROM_QSTR(MP_QSTR_width),       MP_ROM_PTR(&st7701s_width_obj) },
-    { MP_ROM_QSTR(MP_QSTR_height),      MP_ROM_PTR(&st7701s_height_obj) },
-    { MP_ROM_QSTR(MP_QSTR_framebuffer), MP_ROM_PTR(&st7701s_framebuffer_method) },
-    { MP_ROM_QSTR(MP_QSTR_color565),    MP_ROM_PTR(&st7701s_color565_obj) },
+static const mp_rom_map_elem_t st7701_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_init),        MP_ROM_PTR(&st7701_init_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fill),        MP_ROM_PTR(&st7701_fill_obj) },
+    { MP_ROM_QSTR(MP_QSTR_pixel),       MP_ROM_PTR(&st7701_pixel_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fill_rect),   MP_ROM_PTR(&st7701_fill_rect_obj) },
+    { MP_ROM_QSTR(MP_QSTR_hline),       MP_ROM_PTR(&st7701_hline_obj) },
+    { MP_ROM_QSTR(MP_QSTR_vline),       MP_ROM_PTR(&st7701_vline_obj) },
+    { MP_ROM_QSTR(MP_QSTR_blit),        MP_ROM_PTR(&st7701_blit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_backlight),   MP_ROM_PTR(&st7701_backlight_obj) },
+    { MP_ROM_QSTR(MP_QSTR_width),       MP_ROM_PTR(&st7701_width_obj) },
+    { MP_ROM_QSTR(MP_QSTR_height),      MP_ROM_PTR(&st7701_height_obj) },
+    { MP_ROM_QSTR(MP_QSTR_framebuffer), MP_ROM_PTR(&st7701_framebuffer_method) },
+    { MP_ROM_QSTR(MP_QSTR_color565),    MP_ROM_PTR(&st7701_color565_obj) },
     
     // Color constants
     { MP_ROM_QSTR(MP_QSTR_BLACK),       MP_ROM_INT(COLOR_BLACK) },
@@ -664,20 +664,20 @@ static const mp_rom_map_elem_t st7701s_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_GREEN),       MP_ROM_INT(COLOR_GREEN) },
     { MP_ROM_QSTR(MP_QSTR_BLUE),        MP_ROM_INT(COLOR_BLUE) },
 };
-static MP_DEFINE_CONST_DICT(st7701s_locals_dict, st7701s_locals_dict_table);
+static MP_DEFINE_CONST_DICT(st7701_locals_dict, st7701_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
-    st7701s_type,
-    MP_QSTR_ST7701S,
+    st7701_type,
+    MP_QSTR_ST7701,
     MP_TYPE_FLAG_NONE,
-    make_new, st7701s_make_new,
-    locals_dict, &st7701s_locals_dict
+    make_new, st7701_make_new,
+    locals_dict, &st7701_locals_dict
 );
 
 // Module-level definitions
-static const mp_rom_map_elem_t st7701s_module_globals_table[] = {
-    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_st7701s) },
-    { MP_ROM_QSTR(MP_QSTR_ST7701S),  MP_ROM_PTR(&st7701s_type) },
+static const mp_rom_map_elem_t st7701_module_globals_table[] = {
+    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_st7701) },
+    { MP_ROM_QSTR(MP_QSTR_ST7701),  MP_ROM_PTR(&st7701_type) },
     
     // Module-level color constants
     { MP_ROM_QSTR(MP_QSTR_BLACK),    MP_ROM_INT(COLOR_BLACK) },
@@ -686,11 +686,11 @@ static const mp_rom_map_elem_t st7701s_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_GREEN),    MP_ROM_INT(COLOR_GREEN) },
     { MP_ROM_QSTR(MP_QSTR_BLUE),     MP_ROM_INT(COLOR_BLUE) },
 };
-static MP_DEFINE_CONST_DICT(st7701s_module_globals, st7701s_module_globals_table);
+static MP_DEFINE_CONST_DICT(st7701_module_globals, st7701_module_globals_table);
 
-const mp_obj_module_t st7701s_module = {
+const mp_obj_module_t st7701_module = {
     .base = { &mp_type_module },
-    .globals = (mp_obj_dict_t *)&st7701s_module_globals,
+    .globals = (mp_obj_dict_t *)&st7701_module_globals,
 };
 
-MP_REGISTER_MODULE(MP_QSTR_st7701s, st7701s_module);
+MP_REGISTER_MODULE(MP_QSTR_st7701, st7701_module);
