@@ -33,10 +33,12 @@ make
 ### Create the modules directory and copy the files to it
 ```bash
 ~
-├── micropython.cmake
 └── modules/
     ├── micropython.cmake
-    └── st7701.c
+    └── st7701/
+        ├── micropython.cmake
+        └── st7701.c
+
 ```
 
 ### Build the Micropython firmware with this module included
@@ -46,8 +48,9 @@ cd ~
 cd ~/micropython/ports/esp32
 make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT submodules
 export IDF_TARGET=esp32s3
-make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT
+make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT USER_C_MODULES=~/modules/micropython.cmake
 ```
+
 ### Flash the firmware
 The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/build-ESP32_GENERIC_S3-SPIRAM_OCT`  
 `bootloader.bin` is under that in the `bootloader` directory, and `partition-table.bin` is in the `partition_table` directory  
