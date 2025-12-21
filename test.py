@@ -5,7 +5,7 @@ Quick sanity check that the display is working.
 Run this first before the full example.
 """
 
-import st7701s
+import st7701
 
 # =============================================================================
 # PIN CONFIGURATION - ADJUST THESE FOR YOUR BOARD
@@ -32,7 +32,7 @@ DATA_PINS = [15, 7, 6, 5, 4, 16, 17, 18, 21, 38, 39, 40, 41, 42, 2, 1]
 # =============================================================================
 
 print("Creating display...")
-display = st7701s.ST7701S(
+display = st7701.ST7701(
     SPI_CS, SPI_CLK, SPI_MOSI, RESET, BACKLIGHT,
     PCLK, HSYNC, VSYNC, DE,
     DATA_PINS
@@ -44,23 +44,23 @@ display.init()
 print(f"Size: {display.width()}x{display.height()}")
 
 print("Fill RED...")
-display.fill(st7701s.RED)
+display.fill(st7701.RED)
 
 import time
 time.sleep(1)
 
 print("Fill GREEN...")
-display.fill(st7701s.GREEN)
+display.fill(st7701.GREEN)
 
 time.sleep(1)
 
 print("Fill BLUE...")
-display.fill(st7701s.BLUE)
+display.fill(st7701.BLUE)
 
 time.sleep(1)
 
 print("Draw white rectangle in center...")
-display.fill(st7701s.BLACK)
+display.fill(st7701.BLACK)
 w, h = display.width(), display.height()
 display.fill_rect(w//4, h//4, w//2, h//2, st7701s.WHITE)
 
