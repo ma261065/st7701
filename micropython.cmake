@@ -1,12 +1,5 @@
-add_library(usermod_st7701s INTERFACE)
-
-target_sources(usermod_st7701s INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}/st7701s.c)
-
-target_include_directories(usermod_st7701s INTERFACE
-    ${CMAKE_CURRENT_LIST_DIR}
-    $ENV{IDF_PATH}/components/esp_lcd/include
-    $ENV{IDF_PATH}/components/esp_lcd/rgb/include
-)
-
-target_link_libraries(usermod INTERFACE usermod_st7701s)
+# This top-level micropython.cmake is responsible for listing
+# the individual modules we want to include.
+# Paths are absolute, and ${CMAKE_CURRENT_LIST_DIR} can be
+# used to prefix subdirectories.
+include(${CMAKE_CURRENT_LIST_DIR}/st7701s/micropython.cmake)
