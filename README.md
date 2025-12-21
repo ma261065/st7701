@@ -53,7 +53,7 @@ The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/bu
 `bootloader.bin` is under that in the `bootloader` directory, and `partition-table.bin` is in the `partition_table` directory  
 (There is also a combined `firmware.bin` which is the three files above combined into one. If using the combined file, flash it at `0x0000` offset)
 
-You can use [ESPTOOL](https://espressif.github.io/esptool-js/) to flash the firmware. Connect to the chip, select the micropython.bin file created above and flash it at `0x10000`  
+You can use [ESPTOOL](https://espressif.github.io/esptool-js/) to flash the firmware. Connect to the chip, select the `micropython.bin` file created above and flash it at `0x10000`  
 If necessary, you can also flash `bootloader.bin` at `0x0000` and `partition-table.bin` at `0x8000`  
   
 ## Hardware Requirements
