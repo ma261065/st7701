@@ -32,9 +32,11 @@ make
 
 ### Create the modules directory and copy the files to it
 ```bash
-cd ~
-mkdir ~/modules
-cp -r <files in this repository> modules
+~
+├── micropython.cmake
+└── modules/
+    ├── micropython.cmake
+    └── st7701.c
 ```
 
 ### Build the Micropython firmware with this module included
