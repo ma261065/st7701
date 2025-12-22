@@ -7,7 +7,7 @@ This driver is specifically configured for **480x854** displays with:
 - 16-bit RGB565 parallel interface for pixel data
 - PSRAM framebuffer
 
-for example [this display](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)
+for example [this display](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5) ![Alt text](/docs/Display.jpg)
 
 
 ## Build Steps
@@ -271,3 +271,4 @@ To adapt for a different ST7701S panel:
 ## License
 
 MIT License - Use freely in your projects.
+
