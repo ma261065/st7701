@@ -41,6 +41,10 @@ make
 
 ```
 
+Edit `~/micropython\ports\esp32\boards\ESP32_GENERIC_S3/mpconfigboard.cmake` and add
+`list(APPEND IDF_COMPONENTS esp_lcd)`
+
+
 ### Build the Micropython firmware with this module included
 ```bash
 cd ~
