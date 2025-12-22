@@ -1,11 +1,11 @@
 """
-ST7701S Display Example
+ST7701 Display Example
 480x854 RGB LCD on ESP32-S3
 
 Adjust the pin definitions below to match your hardware.
 """
 
-import st7701s
+import st7701
 import time
 
 # =============================================================================
@@ -78,11 +78,11 @@ def hsv_to_rgb565(h, s, v):
 def demo_colors(display):
     """Cycle through basic colors"""
     colors = [
-        (st7701s.RED, "Red"),
-        (st7701s.GREEN, "Green"),
-        (st7701s.BLUE, "Blue"),
-        (st7701s.WHITE, "White"),
-        (st7701s.BLACK, "Black"),
+        (st7701.RED, "Red"),
+        (st7701.GREEN, "Green"),
+        (st7701.BLUE, "Blue"),
+        (st7701.WHITE, "White"),
+        (st7701.BLACK, "Black"),
         (rgb565(255, 255, 0), "Yellow"),
         (rgb565(255, 0, 255), "Magenta"),
         (rgb565(0, 255, 255), "Cyan"),
@@ -98,11 +98,11 @@ def demo_colors(display):
 def demo_rectangles(display):
     """Draw concentric rectangles"""
     print("Rectangle demo...")
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     
     w, h = display.width(), display.height()
-    colors = [st7701s.RED, st7701s.GREEN, st7701s.BLUE, 
-              st7701s.WHITE, rgb565(255, 255, 0)]
+    colors = [st7701.RED, st7701.GREEN, st7701.BLUE, 
+              st7701.WHITE, rgb565(255, 255, 0)]
     
     for i, color in enumerate(colors):
         margin = i * 30
@@ -113,7 +113,7 @@ def demo_rectangles(display):
 def demo_lines(display):
     """Draw line patterns"""
     print("Line demo...")
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     
     w, h = display.width(), display.height()
     
@@ -126,7 +126,7 @@ def demo_lines(display):
     time.sleep(1)
     
     # Vertical lines
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     for x in range(0, w, 10):
         hue = (x * 360) // w
         color = hsv_to_rgb565(hue, 100, 100)
@@ -156,7 +156,7 @@ def demo_gradient(display):
 def demo_checkerboard(display):
     """Draw a checkerboard pattern"""
     print("Checkerboard demo...")
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     
     square_size = 40
     w, h = display.width(), display.height()
@@ -164,12 +164,12 @@ def demo_checkerboard(display):
     for y in range(0, h, square_size):
         for x in range(0, w, square_size):
             if ((x // square_size) + (y // square_size)) % 2 == 0:
-                display.fill_rect(x, y, square_size, square_size, st7701s.WHITE)
+                display.fill_rect(x, y, square_size, square_size, st7701.WHITE)
 
 def demo_pixels(display):
     """Draw random pixels (slower, demonstrates pixel() method)"""
     print("Pixel demo...")
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     
     import random
     w, h = display.width(), display.height()
@@ -183,7 +183,7 @@ def demo_pixels(display):
 def demo_blit(display):
     """Demonstrate blit with a moving sprite"""
     print("Blit demo...")
-    display.fill(st7701s.BLACK)
+    display.fill(st7701.BLACK)
     
     # Create a small sprite (50x50)
     sprite_w, sprite_h = 50, 50
@@ -211,7 +211,7 @@ def demo_blit(display):
     w, h = display.width(), display.height()
     for frame in range(100):
         # Clear previous position
-        display.fill(st7701s.BLACK)
+        display.fill(st7701.BLACK)
         
         # Calculate bouncing position
         x = int((w - sprite_w) * (0.5 + 0.5 * (frame / 50 % 2 - 0.5)))
@@ -226,12 +226,12 @@ def demo_blit(display):
 # =============================================================================
 
 def main():
-    print("ST7701S Display Demo")
+    print("ST7701 Display Demo")
     print("=" * 40)
     
     # Create display instance
     print("Creating display instance...")
-    display = st7701s.ST7701S(
+    display = st7701.ST7701(
         SPI_CS, SPI_CLK, SPI_MOSI, RESET, BACKLIGHT,
         PCLK, HSYNC, VSYNC, DE,
         DATA_PINS
