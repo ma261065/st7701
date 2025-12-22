@@ -302,7 +302,7 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
         .data_width = 16,
         .bits_per_pixel = 16,
         .num_fbs = 1,
-        .bounce_buffer_size_px = 480 * 7, //was self->width * 10,
+        .bounce_buffer_size_px = 480 * 7,
         .sram_trans_align = 8,
         .psram_trans_align = 64,
         .hsync_gpio_num = self->hsync,
