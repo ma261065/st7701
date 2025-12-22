@@ -51,6 +51,7 @@ make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT submodules
 export IDF_TARGET=esp32s3
 make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT USER_C_MODULES=~/modules/micropython.cmake
 ```
+(Note: If the build fails with `undefined reference to 'abort_'` see [this issue](https://github.com/micropython/micropython/issues/18589))
 
 ### Flash the firmware
 The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/build-ESP32_GENERIC_S3-SPIRAM_OCT`  
@@ -272,6 +273,7 @@ To adapt for a different ST7701 panel:
 ## License
 
 MIT License - Use freely in your projects.
+
 
 
 
