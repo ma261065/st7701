@@ -7,7 +7,8 @@ This driver is specifically configured for **480x854** displays with:
 - 16-bit RGB565 parallel interface for pixel data
 - PSRAM framebuffer
 
-for example [this display](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)
+For example [this display](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)  
+![Alt text](/docs/Display.jpg)
 
 
 ## Build Steps
@@ -50,6 +51,7 @@ make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT submodules
 export IDF_TARGET=esp32s3
 make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT USER_C_MODULES=~/modules/micropython.cmake
 ```
+(Note: If the build fails with `undefined reference to 'abort_'` see [this issue](https://github.com/micropython/micropython/issues/18589))
 
 ### Flash the firmware
 The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/build-ESP32_GENERIC_S3-SPIRAM_OCT`  
@@ -101,7 +103,7 @@ If using 18-bit RGB666 wiring, connect:
 ### Basic Example
 
 ```python
-import st7701s
+import st7701
 
 # Define your pin configuration
 SPI_CS   = 10
@@ -121,7 +123,7 @@ DATA_PINS = [15, 7, 6, 5, 4,      # Blue
              40, 41, 42, 2, 1]        # Red
 
 # Create display instance
-display = st7701s.ST7701S(
+display = st7701.ST7701(
     SPI_CS, SPI_CLK, SPI_MOSI, RESET, BACKLIGHT,
     PCLK, HSYNC, VSYNC, DE,
     DATA_PINS
@@ -131,17 +133,17 @@ display = st7701s.ST7701S(
 display.init()
 
 # Fill screen with colour
-display.fill(st7701s.RED)
+display.fill(st7701.RED)
 
 # Draw a rectangle
-display.fill_rect(100, 100, 200, 300, st7701s.BLUE)
+display.fill_rect(100, 100, 200, 300, st7701.BLUE)
 
 # Draw lines
-display.hline(0, 427, 480, st7701s.WHITE)  # Center horizontal
-display.vline(240, 0, 854, st7701s.GREEN)  # Center vertical
+display.hline(0, 427, 480, st7701.WHITE)  # Center horizontal
+display.vline(240, 0, 854, st7701.GREEN)  # Center vertical
 
 # Set individual pixel
-display.pixel(50, 50, st7701s.WHITE)
+display.pixel(50, 50, st7701.WHITE)
 
 # Control backlight
 display.backlight(True)   # On
@@ -205,7 +207,7 @@ fb[offset + 1] = 0xFF  # High byte (white = 0xFFFF)
 
 ### Constructor
 ```python
-ST7701S(spi_cs, spi_clk, spi_mosi, reset, backlight,
+ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
         pclk, hsync, vsync, de, data_pins)
 ```
 
@@ -261,13 +263,17 @@ ST7701S(spi_cs, spi_clk, spi_mosi, reset, backlight,
 
 ## Modifying for Different Panels
 
-To adapt for a different ST7701S panel:
+To adapt for a different ST7701 panel:
 
 1. **Resolution**: Change `LCD_H_RES` and `LCD_V_RES`
-2. **Init sequence**: Update `st7701s_init_sequence()` with vendor's code
+2. **Init sequence**: Update `st7701_init_sequence()` with vendor's code
 3. **Timing**: Adjust the `timings` struct in `setup_rgb_panel()`
 4. **Color format**: Change `0x3A` register value (0x55=RGB565, 0x60=RGB666)
 
 ## License
 
 MIT License - Use freely in your projects.
+
+
+
+
