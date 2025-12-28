@@ -37,7 +37,7 @@ make
 └── modules/
     ├── micropython.cmake
     └── st7701/
-        ├── micropython.cmake
+        ├── st7701.cmake
         └── st7701.c
 
 ```
@@ -273,6 +273,7 @@ To adapt for a different ST7701 panel:
 ## License
 
 MIT License - Use freely in your projects.
+
 
 
 
