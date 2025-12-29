@@ -7,10 +7,12 @@ This driver is specifically configured for **480x854** displays with:
 - 16-bit RGB565 parallel interface for pixel data
 - PSRAM framebuffer
 
-For example [this display](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)  
-![Alt text](/docs/Display.jpg)
+For example [this display:](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)
 
-
+![LCD](/docs/Display.jpg)
+<br>
+<br>
+<br>
 ## Build Steps
 
 ### Clone ESP-IDF
@@ -54,18 +56,21 @@ make BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT USER_C_MODULES=~/modules/mi
 (Note: If the build fails with `undefined reference to 'abort_'` see [this issue](https://github.com/micropython/micropython/issues/18589))
 
 ### Flash the firmware
-The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/build-ESP32_GENERIC_S3-SPIRAM_OCT`  
+The previous steps will build `micropython.bin` in `~/micropython/ports/esp32/build-ESP32_GENERIC_S3-SPIRAM_OCT`
+
 `bootloader.bin` is under that in the `bootloader` directory, and `partition-table.bin` is in the `partition_table` directory  
+
 (There is also a combined `firmware.bin` which is the three files above combined into one. If using the combined file, flash it at `0x0000` offset)
 
 You can use [ESPTOOL](https://espressif.github.io/esptool-js/) to flash the firmware. Connect to the chip, select the `micropython.bin` file created above and flash it at `0x10000`  
 If necessary, you can also flash `bootloader.bin` at `0x0000` and `partition-table.bin` at `0x8000`  
-  
+<br>
+
 ## Hardware Requirements
 
 - **ESP32-S3** with PSRAM (8MB recommended)
 - **ST7701 LCD** 480x854 with RGB interface
-- 27+ GPIO pins available
+- **27+** GPIO pins available
 
 ## Pin Connections
 
