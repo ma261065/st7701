@@ -225,14 +225,16 @@ static void st7701_init_sequence(st7701_obj_t *self) {
     
     // Sleep out
     lcd_cmd(self, 0x11);
+    lcd_cmd(self, 0x00);
     vTaskDelay(pdMS_TO_TICKS(120));
-    
+
     // Tearing effect on
     lcd_cmd(self, 0x35);
     lcd_data(self, 0x00);
     
     // Display on
     lcd_cmd(self, 0x29);
+    lcd_cmd(self, 0x00);
     vTaskDelay(pdMS_TO_TICKS(20));
     
     ESP_LOGI(TAG, "ST7701 init sequence complete");
@@ -422,7 +424,7 @@ static mp_obj_t st7701_fill(mp_obj_t self_in, mp_obj_t color_in) {
     for (size_t i = 0; i < pixels; i++) {
         self->framebuffer[i] = color;
     }
-    
+
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(st7701_fill_obj, st7701_fill);
@@ -466,7 +468,7 @@ static mp_obj_t st7701_fill_rect(size_t n_args, const mp_obj_t *args) {
     if (y + h > self->height) { h = self->height - y; }
     
     if (w <= 0 || h <= 0) return mp_const_none;
-    
+
     for (int row = y; row < y + h; row++) {
         uint16_t *line = &self->framebuffer[row * self->width + x];
         for (int col = 0; col < w; col++) {
@@ -581,7 +583,11 @@ static mp_obj_t st7701_blit(size_t n_args, const mp_obj_t *args) {
     for (int row = 0; row < copy_h; row++) {
         uint16_t *dst_line = &self->framebuffer[(dst_y + row) * self->width + dst_x];
         uint16_t *src_line = &src[(src_y + row) * w + src_x];
-        memcpy(dst_line, src_line, copy_w * 2);
+        
+        for (int col = 0; col < copy_w; col++) {
+            uint16_t v = src_line[col];
+            dst_line[col] = __builtin_bswap16(v); // byte swap to handle ESP32 little-endian
+        }
     }
     
     return mp_const_none;
@@ -623,7 +629,9 @@ static mp_obj_t st7701_framebuffer_obj(mp_obj_t self_in) {
     }
     
     size_t size = self->width * self->height * 2;
-    return mp_obj_new_memoryview('B', size, self->framebuffer);
+
+    // Writable memoryview - set bit 7 of typecode
+    return mp_obj_new_memoryview('B' | 0x80, size, self->framebuffer);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(st7701_framebuffer_method, st7701_framebuffer_obj);
 
