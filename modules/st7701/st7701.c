@@ -1,8 +1,9 @@
 /*
- * ST7701 RGB LCD Driver for MicroPython
+ * ST7701 RGB LCD Driver for MicroPython (Minimal)
  * 
- * Targets ESP32-S3 with esp_lcd RGB panel interface
- * Display: 480x854 18-bit RGB (wired as 16-bit RGB565)
+ * Hardware setup only - use framebuf for drawing.
+ * Targets ESP32-S3 with esp_lcd RGB panel interface.
+ * Display: 480x854 RGB565
  */
 
 #include "py/runtime.h"
@@ -12,14 +13,12 @@
 #include "esp_lcd_panel_rgb.h"
 #include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
-#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 static const char *TAG = "ST7701";
 
-// Display dimensions
 #define LCD_H_RES 480
 #define LCD_V_RES 854
 
@@ -53,7 +52,10 @@ typedef struct _st7701_obj_t {
     gpio_num_t hsync;
     gpio_num_t vsync;
     gpio_num_t de;
-    gpio_num_t data[16];  // RGB565: B0-B4, G0-G5, R0-R4
+    gpio_num_t data[16];
+
+    // Cached framebuffer memoryview
+    mp_obj_t fb_obj;
 } st7701_obj_t;
 
 const mp_obj_type_t st7701_type;
@@ -66,7 +68,6 @@ static void spi_write_9bit(st7701_obj_t *self, bool is_data, uint8_t val) {
     gpio_set_level(self->spi_cs, 0);
     esp_rom_delay_us(1);
     
-    // First bit: 0 = command, 1 = data
     gpio_set_level(self->spi_clk, 0);
     esp_rom_delay_us(1);
     gpio_set_level(self->spi_mosi, is_data ? 1 : 0);
@@ -74,7 +75,6 @@ static void spi_write_9bit(st7701_obj_t *self, bool is_data, uint8_t val) {
     gpio_set_level(self->spi_clk, 1);
     esp_rom_delay_us(1);
     
-    // Remaining 8 bits, MSB first
     for (int i = 7; i >= 0; i--) {
         gpio_set_level(self->spi_clk, 0);
         esp_rom_delay_us(1);
@@ -225,7 +225,6 @@ static void st7701_init_sequence(st7701_obj_t *self) {
     
     // Sleep out
     lcd_cmd(self, 0x11);
-    lcd_cmd(self, 0x00);
     vTaskDelay(pdMS_TO_TICKS(120));
 
     // Tearing effect on
@@ -234,7 +233,6 @@ static void st7701_init_sequence(st7701_obj_t *self) {
     
     // Display on
     lcd_cmd(self, 0x29);
-    lcd_cmd(self, 0x00);
     vTaskDelay(pdMS_TO_TICKS(20));
     
     ESP_LOGI(TAG, "ST7701 init sequence complete");
@@ -250,33 +248,31 @@ static void setup_spi_gpio(st7701_obj_t *self) {
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
+        .pin_bit_mask = (1ULL << self->spi_cs) | 
+                        (1ULL << self->spi_clk) | 
+                        (1ULL << self->spi_mosi) |
+                        (1ULL << self->reset),
     };
-    
-    io_conf.pin_bit_mask = (1ULL << self->spi_cs) | 
-                           (1ULL << self->spi_clk) | 
-                           (1ULL << self->spi_mosi) |
-                           (1ULL << self->reset);
     gpio_config(&io_conf);
     
-    // Default states
     gpio_set_level(self->spi_cs, 1);
     gpio_set_level(self->spi_clk, 1);
     gpio_set_level(self->reset, 1);
 }
 
-static void setup_backlight(st7701_obj_t *self) {
+static void setup_backlight(st7701_obj_t *self, bool on) {
     if (self->backlight >= 0) {
         gpio_config_t io_conf = {
             .mode = GPIO_MODE_OUTPUT,
             .pin_bit_mask = (1ULL << self->backlight),
         };
         gpio_config(&io_conf);
-        gpio_set_level(self->backlight, 1);  // On by default
+        gpio_set_level(self->backlight, on ? 1 : 0);
     }
 }
 
 // ============================================================================
-// RGB Panel Setup via esp_lcd
+// RGB Panel Setup
 // ============================================================================
 
 static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
@@ -285,7 +281,7 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
     esp_lcd_rgb_panel_config_t panel_config = {
         .clk_src = LCD_CLK_SRC_PLL160M,
         .timings = {
-            .pclk_hz = 12000000,  // 12MHz - adjust if needed
+            .pclk_hz = 16000000,
             .h_res = self->width,
             .v_res = self->height,
             .hsync_pulse_width = 10,
@@ -296,15 +292,12 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
             .vsync_front_porch = 10,
             .flags = {
                 .pclk_active_neg = 0,
-                .hsync_idle_low = 0,
-                .vsync_idle_low = 0,
-                .de_idle_high = 0,
             },
         },
         .data_width = 16,
         .bits_per_pixel = 16,
         .num_fbs = 1,
-        .bounce_buffer_size_px = 480 * 7,
+        .bounce_buffer_size_px = self->width * 7,  // 480*7 divides into 480*854
         .sram_trans_align = 8,
         .psram_trans_align = 64,
         .hsync_gpio_num = self->hsync,
@@ -320,9 +313,6 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
         },
         .flags = {
             .fb_in_psram = 1,
-            .double_fb = 0,
-            .no_fb = 0,
-            .refresh_on_demand = 0,
         },
     };
     
@@ -330,10 +320,9 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
     ESP_ERROR_CHECK(esp_lcd_panel_reset(self->panel_handle));
     ESP_ERROR_CHECK(esp_lcd_panel_init(self->panel_handle));
     
-    // Get framebuffer pointer
     esp_lcd_rgb_panel_get_frame_buffer(self->panel_handle, 1, (void **)&self->framebuffer);
     
-    ESP_LOGI(TAG, "RGB panel initialized, framebuffer at %p", self->framebuffer);
+    ESP_LOGI(TAG, "RGB panel ready, framebuffer at %p", self->framebuffer);
     
     return ESP_OK;
 }
@@ -342,8 +331,7 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
 // MicroPython Interface
 // ============================================================================
 
-// Constructor: ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
-//                      pclk, hsync, vsync, de, data_pins)
+// Constructor
 static mp_obj_t st7701_make_new(const mp_obj_type_t *type, size_t n_args, 
                                   size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 10, 10, false);
@@ -354,27 +342,25 @@ static mp_obj_t st7701_make_new(const mp_obj_type_t *type, size_t n_args,
     self->height = LCD_V_RES;
     self->panel_handle = NULL;
     self->framebuffer = NULL;
+    self->fb_obj = mp_const_none; 
     
-    // SPI init pins
     self->spi_cs = mp_obj_get_int(args[0]);
     self->spi_clk = mp_obj_get_int(args[1]);
     self->spi_mosi = mp_obj_get_int(args[2]);
     self->reset = mp_obj_get_int(args[3]);
     self->backlight = mp_obj_get_int(args[4]);
     
-    // RGB control pins
     self->pclk = mp_obj_get_int(args[5]);
     self->hsync = mp_obj_get_int(args[6]);
     self->vsync = mp_obj_get_int(args[7]);
     self->de = mp_obj_get_int(args[8]);
     
-    // RGB data pins (list of 16 GPIO numbers)
     mp_obj_t *data_pins;
     size_t data_pins_len;
     mp_obj_get_array(args[9], &data_pins_len, &data_pins);
     
     if (data_pins_len != 16) {
-        mp_raise_ValueError(MP_ERROR_TEXT("data_pins must be list of 16 GPIO numbers"));
+        mp_raise_ValueError(MP_ERROR_TEXT("data_pins must have 16 elements"));
     }
     
     for (int i = 0; i < 16; i++) {
@@ -384,217 +370,74 @@ static mp_obj_t st7701_make_new(const mp_obj_type_t *type, size_t n_args,
     return MP_OBJ_FROM_PTR(self);
 }
 
-// init() - Initialize the display
+// init()
 static mp_obj_t st7701_init(mp_obj_t self_in) {
     st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
-    ESP_LOGI(TAG, "Initializing ST7701 %dx%d", self->width, self->height);
-    
-    // Setup GPIO for SPI init
     setup_spi_gpio(self);
-    
-    // Run ST7701 init sequence via 9-bit SPI
     st7701_init_sequence(self);
-    
-    // Setup RGB panel
     setup_rgb_panel(self);
+    setup_backlight(self, true);
     
-    // Setup backlight
-    setup_backlight(self);
-    
-    // Clear screen to black
+    // Clear to black
     memset(self->framebuffer, 0, self->width * self->height * 2);
-    
-    ESP_LOGI(TAG, "ST7701 ready");
     
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(st7701_init_obj, st7701_init);
 
-// fill(color) - Fill entire screen with RGB565 color
-static mp_obj_t st7701_fill(mp_obj_t self_in, mp_obj_t color_in) {
+static mp_obj_t st7701_deinit(mp_obj_t self_in) {
     st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    uint16_t color = mp_obj_get_int(color_in);
+    
+    // Turn off backlight first
+    if (self->backlight >= 0) {
+        gpio_set_level(self->backlight, 0);
+    }
+    
+    if (self->panel_handle != NULL) {
+        esp_lcd_panel_del(self->panel_handle);
+        self->panel_handle = NULL;
+        self->framebuffer = NULL;
+        self->fb_obj = mp_const_none;  // invalidate cached memoryview
+    }
+    
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_deinit_obj, st7701_deinit);
+
+// framebuffer() -> memoryview
+static mp_obj_t st7701_framebuffer(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
     if (self->framebuffer == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Not initialized"));
     }
     
-    size_t pixels = self->width * self->height;
-    for (size_t i = 0; i < pixels; i++) {
-        self->framebuffer[i] = color;
+    if (self->fb_obj == mp_const_none) {
+        size_t size = self->width * self->height * 2;
+        //return mp_obj_new_bytearray_by_ref(size, self->framebuffer);
+        self->fb_obj = mp_obj_new_memoryview('B' | 0x80, size, self->framebuffer);
     }
-
-    return mp_const_none;
+    
+    return self->fb_obj;
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(st7701_fill_obj, st7701_fill);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_framebuffer_obj, st7701_framebuffer);
 
-// pixel(x, y, color) - Set single pixel
-static mp_obj_t st7701_pixel(size_t n_args, const mp_obj_t *args) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    int x = mp_obj_get_int(args[1]);
-    int y = mp_obj_get_int(args[2]);
-    uint16_t color = mp_obj_get_int(args[3]);
-    
-    if (self->framebuffer == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
-    }
-    
-    if (x >= 0 && x < self->width && y >= 0 && y < self->height) {
-        self->framebuffer[y * self->width + x] = color;
-    }
-    
-    return mp_const_none;
+// width()
+static mp_obj_t st7701_width(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    return mp_obj_new_int(self->width);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_pixel_obj, 4, 4, st7701_pixel);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_width_obj, st7701_width);
 
-// fill_rect(x, y, w, h, color) - Fill rectangle
-static mp_obj_t st7701_fill_rect(size_t n_args, const mp_obj_t *args) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    int x = mp_obj_get_int(args[1]);
-    int y = mp_obj_get_int(args[2]);
-    int w = mp_obj_get_int(args[3]);
-    int h = mp_obj_get_int(args[4]);
-    uint16_t color = mp_obj_get_int(args[5]);
-    
-    if (self->framebuffer == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
-    }
-    
-    // Clip to screen bounds
-    if (x < 0) { w += x; x = 0; }
-    if (y < 0) { h += y; y = 0; }
-    if (x + w > self->width) { w = self->width - x; }
-    if (y + h > self->height) { h = self->height - y; }
-    
-    if (w <= 0 || h <= 0) return mp_const_none;
-
-    for (int row = y; row < y + h; row++) {
-        uint16_t *line = &self->framebuffer[row * self->width + x];
-        for (int col = 0; col < w; col++) {
-            line[col] = color;
-        }
-    }
-    
-    return mp_const_none;
+// height()
+static mp_obj_t st7701_height(mp_obj_t self_in) {
+    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    return mp_obj_new_int(self->height);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_fill_rect_obj, 6, 6, st7701_fill_rect);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_height_obj, st7701_height);
 
-// hline(x, y, w, color) - Horizontal line
-static mp_obj_t st7701_hline(size_t n_args, const mp_obj_t *args) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    int x = mp_obj_get_int(args[1]);
-    int y = mp_obj_get_int(args[2]);
-    int w = mp_obj_get_int(args[3]);
-    uint16_t color = mp_obj_get_int(args[4]);
-    
-    if (self->framebuffer == NULL || y < 0 || y >= self->height) {
-        return mp_const_none;
-    }
-    
-    if (x < 0) { w += x; x = 0; }
-    if (x + w > self->width) { w = self->width - x; }
-    if (w <= 0) return mp_const_none;
-    
-    uint16_t *line = &self->framebuffer[y * self->width + x];
-    for (int i = 0; i < w; i++) {
-        line[i] = color;
-    }
-    
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_hline_obj, 5, 5, st7701_hline);
-
-// vline(x, y, h, color) - Vertical line
-static mp_obj_t st7701_vline(size_t n_args, const mp_obj_t *args) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    int x = mp_obj_get_int(args[1]);
-    int y = mp_obj_get_int(args[2]);
-    int h = mp_obj_get_int(args[3]);
-    uint16_t color = mp_obj_get_int(args[4]);
-    
-    if (self->framebuffer == NULL || x < 0 || x >= self->width) {
-        return mp_const_none;
-    }
-    
-    if (y < 0) { h += y; y = 0; }
-    if (y + h > self->height) { h = self->height - y; }
-    if (h <= 0) return mp_const_none;
-    
-    for (int row = y; row < y + h; row++) {
-        self->framebuffer[row * self->width + x] = color;
-    }
-    
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_vline_obj, 5, 5, st7701_vline);
-
-// blit(buffer, x, y, w, h) - Blit a buffer (bytes/bytearray) to screen
-static mp_obj_t st7701_blit(size_t n_args, const mp_obj_t *args) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(args[0]);
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(args[1], &bufinfo, MP_BUFFER_READ);
-    
-    int x = mp_obj_get_int(args[2]);
-    int y = mp_obj_get_int(args[3]);
-    int w = mp_obj_get_int(args[4]);
-    int h = mp_obj_get_int(args[5]);
-    
-    if (self->framebuffer == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
-    }
-    
-    // Check buffer size
-    size_t expected_size = w * h * 2;
-    if (bufinfo.len < expected_size) {
-        mp_raise_ValueError(MP_ERROR_TEXT("Buffer too small"));
-    }
-    
-    uint16_t *src = (uint16_t *)bufinfo.buf;
-    
-    // Simple blit with clipping
-    int src_x = 0, src_y = 0;
-    int dst_x = x, dst_y = y;
-    int copy_w = w, copy_h = h;
-    
-    // Clip left
-    if (dst_x < 0) {
-        src_x = -dst_x;
-        copy_w += dst_x;
-        dst_x = 0;
-    }
-    // Clip top
-    if (dst_y < 0) {
-        src_y = -dst_y;
-        copy_h += dst_y;
-        dst_y = 0;
-    }
-    // Clip right
-    if (dst_x + copy_w > self->width) {
-        copy_w = self->width - dst_x;
-    }
-    // Clip bottom
-    if (dst_y + copy_h > self->height) {
-        copy_h = self->height - dst_y;
-    }
-    
-    if (copy_w <= 0 || copy_h <= 0) return mp_const_none;
-    
-    for (int row = 0; row < copy_h; row++) {
-        uint16_t *dst_line = &self->framebuffer[(dst_y + row) * self->width + dst_x];
-        uint16_t *src_line = &src[(src_y + row) * w + src_x];
-        
-        for (int col = 0; col < copy_w; col++) {
-            uint16_t v = src_line[col];
-            dst_line[col] = __builtin_bswap16(v); // byte swap to handle ESP32 little-endian
-        }
-    }
-    
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_blit_obj, 6, 6, st7701_blit);
-
-// backlight(on) - Control backlight (0=off, 1=on)
+// backlight(on/off)
 static mp_obj_t st7701_backlight(mp_obj_t self_in, mp_obj_t on_in) {
     st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
     
@@ -606,46 +449,134 @@ static mp_obj_t st7701_backlight(mp_obj_t self_in, mp_obj_t on_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(st7701_backlight_obj, st7701_backlight);
 
-// width() - Get display width
-static mp_obj_t st7701_width(mp_obj_t self_in) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    return mp_obj_new_int(self->width);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701_width_obj, st7701_width);
-
-// height() - Get display height
-static mp_obj_t st7701_height(mp_obj_t self_in) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    return mp_obj_new_int(self->height);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701_height_obj, st7701_height);
-
-// framebuffer() - Get direct access to framebuffer as memoryview
-static mp_obj_t st7701_framebuffer_obj(mp_obj_t self_in) {
-    st7701_obj_t *self = MP_OBJ_TO_PTR(self_in);
+// Swap bytes in-place for big-endian RGB565 data
+static mp_obj_t st7701_swap_bytes(mp_obj_t buf_in) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(buf_in, &bufinfo, MP_BUFFER_RW);
     
-    if (self->framebuffer == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("Display not initialized"));
+    uint16_t *buf = bufinfo.buf;
+    size_t len = bufinfo.len / 2;
+    
+    for (size_t i = 0; i < len; i++) {
+        buf[i] = __builtin_bswap16(buf[i]);
     }
     
-    size_t size = self->width * self->height * 2;
-
-    // Writable memoryview - set bit 7 of typecode
-    return mp_obj_new_memoryview('B' | 0x80, size, self->framebuffer);
+    return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(st7701_framebuffer_method, st7701_framebuffer_obj);
+static MP_DEFINE_CONST_FUN_OBJ_1(st7701_swap_bytes_obj, st7701_swap_bytes);
 
-// color565(r, g, b) - Convert RGB888 to RGB565
-static mp_obj_t st7701_color565(size_t n_args, const mp_obj_t *args) {
-    (void)args[0];  // self, unused
-    int r = mp_obj_get_int(args[1]) & 0xFF;
-    int g = mp_obj_get_int(args[2]) & 0xFF;
-    int b = mp_obj_get_int(args[3]) & 0xFF;
+// rgb565(r, g, b) - Convert RGB888 to RGB565
+static mp_obj_t st7701_rgb565(size_t n_args, const mp_obj_t *args) {
+    int r = mp_obj_get_int(args[0]) & 0xFF;
+    int g = mp_obj_get_int(args[1]) & 0xFF;
+    int b = mp_obj_get_int(args[2]) & 0xFF;
     
     uint16_t color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
     return mp_obj_new_int(color);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_color565_obj, 4, 4, st7701_color565);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_rgb565_obj, 3, 3, st7701_rgb565);
+
+// Helper: Vertical flip
+static void flip_vertical(uint16_t *buffer, int w, int h) {
+    for (int y = 0; y < h / 2; y++) {
+        for (int x = 0; x < w; x++) {
+            uint16_t temp = buffer[y * w + x];
+            buffer[y * w + x] = buffer[(h - 1 - y) * w + x];
+            buffer[(h - 1 - y) * w + x] = temp;
+        }
+    }
+}
+
+// Helper: In-place rectangular transpose using cycle-following
+static void transpose_rectangular(uint16_t *buffer, int w, int h) {
+    int n = w * h;
+    int mod = n - 1;
+    
+    for (int start = 1; start < n - 1; start++) {
+        int next = (start * h) % mod;
+        
+        // Only process if start is minimum index in cycle
+        int current = next;
+        int is_min = 1;
+        while (current != start) {
+            if (current < start) {
+                is_min = 0;
+                break;
+            }
+            current = (current * h) % mod;
+        }
+        
+        if (is_min) {
+            uint16_t val = buffer[start];
+            int curr_idx = start;
+            do {
+                int next_idx = (curr_idx * h) % mod;
+                uint16_t temp = buffer[next_idx];
+                buffer[next_idx] = val;
+                val = temp;
+                curr_idx = next_idx;
+            } while (curr_idx != start);
+        }
+    }
+}
+
+// Rotate in-place by 90, 180, or 270 degrees - avoids any new memory allocation at the expense of more complexity
+// rotate(buffer, width, height, degrees) -> (buffer, new_width, new_height)
+static mp_obj_t st7701_rotate(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(args[0], &bufinfo, MP_BUFFER_RW);
+    
+    mp_int_t w = mp_obj_get_int(args[1]);
+    mp_int_t h = mp_obj_get_int(args[2]);
+    mp_int_t degrees = mp_obj_get_int(args[3]);
+    
+    size_t expected_size = w * h * 2;
+    if (bufinfo.len < expected_size) {
+        mp_raise_ValueError(MP_ERROR_TEXT("buffer too small for dimensions"));
+    }
+    
+    if (degrees != 90 && degrees != 180 && degrees != 270) {
+        mp_raise_ValueError(MP_ERROR_TEXT("degrees must be 90, 180, or 270"));
+    }
+    
+    uint16_t *buffer = bufinfo.buf;
+    int n = w * h;
+    
+    mp_int_t new_w, new_h;
+    
+    if (degrees == 180) {
+        // Reverse entire array
+        for (int i = 0; i < n / 2; i++) {
+            uint16_t temp = buffer[i];
+            buffer[i] = buffer[n - 1 - i];
+            buffer[n - 1 - i] = temp;
+        }
+        new_w = w;
+        new_h = h;
+    } 
+    else if (degrees == 90) {
+        // 90 CW = Vertical flip -> Transpose
+        flip_vertical(buffer, w, h);
+        transpose_rectangular(buffer, w, h);
+        new_w = h;
+        new_h = w;
+    } 
+    else {  // 270
+        // 270 CW = Transpose -> Vertical flip (with swapped dims)
+        transpose_rectangular(buffer, w, h);
+        flip_vertical(buffer, h, w);
+        new_w = h;
+        new_h = w;
+    }
+    
+    mp_obj_t tuple[2] = {
+        mp_obj_new_int(new_w),
+        mp_obj_new_int(new_h)
+    };
+    
+    return mp_obj_new_tuple(2, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_rotate_obj, 4, 4, st7701_rotate);
 
 // ============================================================================
 // Module Registration
@@ -653,24 +584,11 @@ static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_color565_obj, 4, 4, st7701_col
 
 static const mp_rom_map_elem_t st7701_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init),        MP_ROM_PTR(&st7701_init_obj) },
-    { MP_ROM_QSTR(MP_QSTR_fill),        MP_ROM_PTR(&st7701_fill_obj) },
-    { MP_ROM_QSTR(MP_QSTR_pixel),       MP_ROM_PTR(&st7701_pixel_obj) },
-    { MP_ROM_QSTR(MP_QSTR_fill_rect),   MP_ROM_PTR(&st7701_fill_rect_obj) },
-    { MP_ROM_QSTR(MP_QSTR_hline),       MP_ROM_PTR(&st7701_hline_obj) },
-    { MP_ROM_QSTR(MP_QSTR_vline),       MP_ROM_PTR(&st7701_vline_obj) },
-    { MP_ROM_QSTR(MP_QSTR_blit),        MP_ROM_PTR(&st7701_blit_obj) },
-    { MP_ROM_QSTR(MP_QSTR_backlight),   MP_ROM_PTR(&st7701_backlight_obj) },
+    { MP_ROM_QSTR(MP_QSTR_deinit),        MP_ROM_PTR(&st7701_deinit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_framebuffer), MP_ROM_PTR(&st7701_framebuffer_obj) },
     { MP_ROM_QSTR(MP_QSTR_width),       MP_ROM_PTR(&st7701_width_obj) },
     { MP_ROM_QSTR(MP_QSTR_height),      MP_ROM_PTR(&st7701_height_obj) },
-    { MP_ROM_QSTR(MP_QSTR_framebuffer), MP_ROM_PTR(&st7701_framebuffer_method) },
-    { MP_ROM_QSTR(MP_QSTR_color565),    MP_ROM_PTR(&st7701_color565_obj) },
-    
-    // Color constants
-    { MP_ROM_QSTR(MP_QSTR_BLACK),       MP_ROM_INT(COLOR_BLACK) },
-    { MP_ROM_QSTR(MP_QSTR_WHITE),       MP_ROM_INT(COLOR_WHITE) },
-    { MP_ROM_QSTR(MP_QSTR_RED),         MP_ROM_INT(COLOR_RED) },
-    { MP_ROM_QSTR(MP_QSTR_GREEN),       MP_ROM_INT(COLOR_GREEN) },
-    { MP_ROM_QSTR(MP_QSTR_BLUE),        MP_ROM_INT(COLOR_BLUE) },
+    { MP_ROM_QSTR(MP_QSTR_backlight),   MP_ROM_PTR(&st7701_backlight_obj) },
 };
 static MP_DEFINE_CONST_DICT(st7701_locals_dict, st7701_locals_dict_table);
 
@@ -682,17 +600,19 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &st7701_locals_dict
 );
 
-// Module-level definitions
 static const mp_rom_map_elem_t st7701_module_globals_table[] = {
-    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_st7701) },
-    { MP_ROM_QSTR(MP_QSTR_ST7701),  MP_ROM_PTR(&st7701_type) },
-    
+    { MP_ROM_QSTR(MP_QSTR___name__),    MP_ROM_QSTR(MP_QSTR_st7701) },
+    { MP_ROM_QSTR(MP_QSTR_ST7701),      MP_ROM_PTR(&st7701_type) },
+    { MP_ROM_QSTR(MP_QSTR_swap_bytes),  MP_ROM_PTR(&st7701_swap_bytes_obj) },
+    { MP_ROM_QSTR(MP_QSTR_rgb565),      MP_ROM_PTR(&st7701_rgb565_obj) },
+    { MP_ROM_QSTR(MP_QSTR_rotate),      MP_ROM_PTR(&st7701_rotate_obj) },
+
     // Module-level color constants
-    { MP_ROM_QSTR(MP_QSTR_BLACK),    MP_ROM_INT(COLOR_BLACK) },
-    { MP_ROM_QSTR(MP_QSTR_WHITE),    MP_ROM_INT(COLOR_WHITE) },
-    { MP_ROM_QSTR(MP_QSTR_RED),      MP_ROM_INT(COLOR_RED) },
-    { MP_ROM_QSTR(MP_QSTR_GREEN),    MP_ROM_INT(COLOR_GREEN) },
-    { MP_ROM_QSTR(MP_QSTR_BLUE),     MP_ROM_INT(COLOR_BLUE) },
+    { MP_ROM_QSTR(MP_QSTR_BLACK),       MP_ROM_INT(COLOR_BLACK) },
+    { MP_ROM_QSTR(MP_QSTR_WHITE),       MP_ROM_INT(COLOR_WHITE) },
+    { MP_ROM_QSTR(MP_QSTR_RED),         MP_ROM_INT(COLOR_RED) },
+    { MP_ROM_QSTR(MP_QSTR_GREEN),       MP_ROM_INT(COLOR_GREEN) },
+    { MP_ROM_QSTR(MP_QSTR_BLUE),        MP_ROM_INT(COLOR_BLUE) },
 };
 static MP_DEFINE_CONST_DICT(st7701_module_globals, st7701_module_globals_table);
 

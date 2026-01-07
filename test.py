@@ -6,62 +6,76 @@ Run this first before the full example.
 """
 
 import st7701
+import framebuf
+import time
 
 # =============================================================================
 # PIN CONFIGURATION - ADJUST THESE FOR YOUR BOARD
 # =============================================================================
 
 # SPI init pins
-SPI_CS   = 10
-SPI_CLK  = 12
-SPI_MOSI = 11
-RESET    = 9
-BACKLIGHT = 45  # -1 if not used
+SPI_CS   = 41
+SPI_CLK  = 42
+SPI_MOSI = 2
+RESET    = 1
+BACKLIGHT = -1  # -1 if not used
 
 # RGB control pins
-PCLK  = 8
-HSYNC = 47
-VSYNC = 48
-DE    = 3
+PCLK  = 40
+HSYNC = 5
+VSYNC = 38
+DE    = 39
 
 # RGB565 data pins: B0-B4, G0-G5, R0-R4
-DATA_PINS = [15, 7, 6, 5, 4, 16, 17, 18, 21, 38, 39, 40, 41, 42, 2, 1]
+DATA_PINS = [12, 47, 21, 14, 4,  11, 10, 9, 3, 8, 18,  7, 17, 16, 15, 13]
 
 # =============================================================================
 # TEST
 # =============================================================================
 
+from machine import Pin
+from neopixel import NeoPixel
+pin = Pin(48, Pin.OUT)  # set GPIO48 to output to drive NeoPixels
+np = NeoPixel(pin, 1)   # create NeoPixel driver on GPIO48 for 1 pixel
+np[0] = (0, 0, 0)       # set the LED to black
+np.write()              # write data to all pixels
+
 print("Creating display...")
 display = st7701.ST7701(
     SPI_CS, SPI_CLK, SPI_MOSI, RESET, BACKLIGHT,
     PCLK, HSYNC, VSYNC, DE,
+    
     DATA_PINS
 )
 
 print("Initializing...")
 display.init()
 
+# Create a framebuffer
+framebuffer = framebuf.FrameBuffer(display.framebuffer(), 480, 854, framebuf.RGB565)
 print(f"Size: {display.width()}x{display.height()}")
 
 print("Fill RED...")
-display.fill(st7701.RED)
+framebuffer.fill(st7701.RED)
 
-import time
-time.sleep(1)
+time.sleep(3)
 
 print("Fill GREEN...")
-display.fill(st7701.GREEN)
+framebuffer.fill(st7701.GREEN)
 
-time.sleep(1)
+time.sleep(3)
 
 print("Fill BLUE...")
-display.fill(st7701.BLUE)
+framebuffer.fill(st7701.BLUE)
 
-time.sleep(1)
+time.sleep(3)
 
 print("Draw white rectangle in center...")
-display.fill(st7701.BLACK)
+framebuffer.fill(st7701.BLACK)
 w, h = display.width(), display.height()
-display.fill_rect(w//4, h//4, w//2, h//2, st7701.WHITE)
+framebuffer.rect(w//4, h//4, w//2, h//2, st7701.WHITE, True)
 
 print("Done! If you see colors, the display is working.")
+
+time.sleep(10)
+display.deinit()

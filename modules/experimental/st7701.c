@@ -372,7 +372,9 @@ STATIC mp_obj_t st7701s_framebuffer(mp_obj_t self_in) {
     }
     
     size_t size = self->width * self->height * 2;
-    return mp_obj_new_bytearray_by_ref(size, self->framebuffer);
+    //return mp_obj_new_bytearray_by_ref(size, self->framebuffer);
+    // Writable memoryview - set bit 7 of typecode
+    return mp_obj_new_memoryview('B' | 0x80, size, self->framebuffer);
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(st7701s_framebuffer_obj, st7701s_framebuffer);
 

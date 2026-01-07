@@ -6,43 +6,30 @@ Adjust the pin definitions below to match your hardware.
 """
 
 import st7701
+import framebuf
 import time
 
 # =============================================================================
 # PIN CONFIGURATION - ADJUST THESE FOR YOUR BOARD
 # =============================================================================
 
-# SPI init pins (directly bit-banged, any GPIO will work)
-SPI_CS   = 10
-SPI_CLK  = 12
-SPI_MOSI = 11
-RESET    = 9
-BACKLIGHT = 45  # Set to -1 if backlight is always on
+SPI_CS   = 41
+SPI_CLK  = 42
+SPI_MOSI = 2
+RESET    = 1
+BACKLIGHT = -1
 
-# RGB control pins
-PCLK  = 8
-HSYNC = 47
-VSYNC = 48
-DE    = 3
+PCLK  = 40
+HSYNC = 5
+VSYNC = 38
+DE    = 39
 
-# RGB565 data pins in order: B0-B4, G0-G5, R0-R4 (16 pins total)
-# These should be grouped physically for cleaner routing
-DATA_PINS = [
-    # Blue (5 bits)
-    15, 7, 6, 5, 4,
-    # Green (6 bits)  
-    16, 17, 18, 21, 38, 39,
-    # Red (5 bits)
-    40, 41, 42, 2, 1
-]
+DATA_PINS = [12, 47, 21, 14, 4,  11, 10, 9, 3, 8, 18,  7, 17, 16, 15, 13]
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
-def rgb565(r, g, b):
-    """Convert RGB888 to RGB565"""
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
 def hsv_to_rgb565(h, s, v):
     """Convert HSV to RGB565 (h: 0-360, s: 0-100, v: 0-100)"""
@@ -69,126 +56,118 @@ def hsv_to_rgb565(h, s, v):
     g = int((g + m) * 255)
     b = int((b + m) * 255)
     
-    return rgb565(r, g, b)
+    return st7701.rgb565(r, g, b)
 
 # =============================================================================
 # DEMO FUNCTIONS
 # =============================================================================
 
-def demo_colors(display):
-    """Cycle through basic colors"""
-    colors = [
+def demo_colours(framebuffer):
+    """Cycle through basic colours"""
+    colours = [
         (st7701.RED, "Red"),
         (st7701.GREEN, "Green"),
         (st7701.BLUE, "Blue"),
         (st7701.WHITE, "White"),
         (st7701.BLACK, "Black"),
-        (rgb565(255, 255, 0), "Yellow"),
-        (rgb565(255, 0, 255), "Magenta"),
-        (rgb565(0, 255, 255), "Cyan"),
-        (rgb565(255, 128, 0), "Orange"),
+        (st7701.rgb565(255, 255, 0), "Yellow"),
+        (st7701.rgb565(255, 0, 255), "Magenta"),
+        (st7701.rgb565(0, 255, 255), "Cyan"),
+        (st7701.rgb565(255, 128, 0), "Orange"),
     ]
     
-    print("Color demo...")
-    for color, name in colors:
+    print("Colour demo...")
+    for colour, name in colours:
         print(f"  {name}")
-        display.fill(color)
+        framebuffer.fill(colour)
         time.sleep(0.5)
 
-def demo_rectangles(display):
+def demo_rectangles(framebuffer, width, height):
     """Draw concentric rectangles"""
     print("Rectangle demo...")
-    display.fill(st7701.BLACK)
+    framebuffer.fill(st7701.BLACK)
     
-    w, h = display.width(), display.height()
-    colors = [st7701.RED, st7701.GREEN, st7701.BLUE, 
-              st7701.WHITE, rgb565(255, 255, 0)]
+    colours = [st7701.RED, st7701.GREEN, st7701.BLUE, 
+              st7701.WHITE, st7701.rgb565(255, 255, 0)]
     
-    for i, color in enumerate(colors):
+    for i, colour in enumerate(colours * 2):
         margin = i * 30
-        display.fill_rect(margin, margin, 
-                         w - margin * 2, h - margin * 2, color)
+        framebuffer.fill_rect(margin, margin, width - margin * 2, height - margin * 2, colour)
         time.sleep(0.2)
 
-def demo_lines(display):
+def demo_lines(framebuffer, width, height):
     """Draw line patterns"""
     print("Line demo...")
-    display.fill(st7701.BLACK)
-    
-    w, h = display.width(), display.height()
+    framebuffer.fill(st7701.BLACK)
     
     # Horizontal lines
-    for y in range(0, h, 20):
-        hue = (y * 360) // h
-        color = hsv_to_rgb565(hue, 100, 100)
-        display.hline(0, y, w, color)
+    for y in range(0, height, 20):
+        hue = (y * 360) // height
+        colour = hsv_to_rgb565(hue, 100, 100)
+        framebuffer.hline(0, y, width, colour)
     
     time.sleep(1)
     
     # Vertical lines
-    display.fill(st7701.BLACK)
-    for x in range(0, w, 10):
-        hue = (x * 360) // w
-        color = hsv_to_rgb565(hue, 100, 100)
-        display.vline(x, 0, h, color)
+    framebuffer.fill(st7701.BLACK)
+    for x in range(0, width, 10):
+        hue = (x * 360) // width
+        colour = hsv_to_rgb565(hue, 100, 100)
+        framebuffer.vline(x, 0, height, colour)
 
-def demo_gradient(display):
+def demo_gradient(framebuffer, width, height):
     """Draw a gradient using direct framebuffer access"""
     print("Gradient demo...")
     
-    w, h = display.width(), display.height()
-    fb = display.framebuffer()
-    
-    for y in range(h):
-        hue = (y * 360) // h
-        color = hsv_to_rgb565(hue, 100, 100)
+    for y in range(height):
+        hue = (y * 360) // height
+        colour = hsv_to_rgb565(hue, 100, 100)
         
         # Write entire row
-        for x in range(w):
-            offset = (y * w + x) * 2
-            fb[offset] = color & 0xFF
-            fb[offset + 1] = (color >> 8) & 0xFF
+        for x in range(width):
+            offset = (y * width + x) * 2
+            framebuffer[offset] = colour & 0xFF
+            framebuffer[offset + 1] = (colour >> 8) & 0xFF
         
         # Progress indicator
         if y % 100 == 0:
-            print(f"  {y}/{h}")
+            print(f"  {y}/{height}")
 
-def demo_checkerboard(display):
+def demo_checkerboard(framebuffer, width, height):
     """Draw a checkerboard pattern"""
     print("Checkerboard demo...")
-    display.fill(st7701.BLACK)
+    framebuffer.fill(st7701.BLACK)
     
     square_size = 40
-    w, h = display.width(), display.height()
-    
-    for y in range(0, h, square_size):
-        for x in range(0, w, square_size):
+        
+    for y in range(0, height, square_size):
+        for x in range(0, width, square_size):
             if ((x // square_size) + (y // square_size)) % 2 == 0:
-                display.fill_rect(x, y, square_size, square_size, st7701.WHITE)
+                framebuffer.rect(x, y, square_size, square_size, st7701.WHITE, True)
 
-def demo_pixels(display):
+def demo_pixels(framebuffer, width, height):
     """Draw random pixels (slower, demonstrates pixel() method)"""
     print("Pixel demo...")
-    display.fill(st7701.BLACK)
+    framebuffer.fill(st7701.BLACK)
     
     import random
-    w, h = display.width(), display.height()
     
-    for _ in range(5000):
-        x = random.randint(0, w - 1)
-        y = random.randint(0, h - 1)
-        color = hsv_to_rgb565(random.randint(0, 359), 100, 100)
-        display.pixel(x, y, color)
+    for _ in range(20000):
+        x = random.randint(0, width - 1)
+        y = random.randint(0, height - 1)
+        colour = hsv_to_rgb565(random.randint(0, 359), 100, 100)
+        framebuffer.pixel(x, y, colour)
 
-def demo_blit(display):
+def demo_blit(framebuffer, width, height):
     """Demonstrate blit with a moving sprite"""
     print("Blit demo...")
-    display.fill(st7701.BLACK)
+    framebuffer.fill(st7701.BLACK)
     
     # Create a small sprite (50x50)
     sprite_w, sprite_h = 50, 50
     sprite = bytearray(sprite_w * sprite_h * 2)
-    
+    empty_sprite = bytearray(0xff * sprite_w * sprite_h * 2)
+        
     # Fill sprite with gradient
     for y in range(sprite_h):
         for x in range(sprite_w):
@@ -199,27 +178,29 @@ def demo_blit(display):
             
             if dist < sprite_w // 2:
                 intensity = int(255 * (1 - dist / (sprite_w // 2)))
-                color = rgb565(intensity, intensity // 2, 0)
+                colour = st7701.rgb565(intensity, intensity // 2, 0)
             else:
-                color = 0  # Transparent (black)
+                colour = 0  # Transparent (black)
             
             offset = (y * sprite_w + x) * 2
-            sprite[offset] = color & 0xFF
-            sprite[offset + 1] = (color >> 8) & 0xFF
+            sprite[offset] = colour & 0xFF
+            sprite[offset + 1] = (colour >> 8) & 0xFF
+
+    framebuffer.fill(st7701.BLACK)
     
     # Animate sprite
-    w, h = display.width(), display.height()
-    for frame in range(100):
-        # Clear previous position
-        display.fill(st7701.BLACK)
-        
+    for frame in range(200):
         # Calculate bouncing position
-        x = int((w - sprite_w) * (0.5 + 0.5 * (frame / 50 % 2 - 0.5)))
-        y = int((h - sprite_h) * abs((frame % 60) - 30) / 30)
-        
+        x = int((width - sprite_w) * (0.5 + 0.5 * (frame / 50 % 2 - 0.5)))
+        y = int((height - sprite_h) * abs((frame % 60) - 30) / 30)
+
+        x = int((width - sprite_w) * abs((frame % 100) - 50) / 50)
+        y = int((height - sprite_h) * abs((frame % 60) - 30) / 30)
+
         # Blit sprite
-        display.blit(sprite, x, y, sprite_w, sprite_h)
-        time.sleep(0.03)
+        framebuffer.blit((sprite, sprite_w, sprite_h, framebuf.RGB565), x, y)
+        time.sleep(0.08)
+        framebuffer.blit((empty_sprite, sprite_w, sprite_h, framebuf.RGB565), x, y)
 
 # =============================================================================
 # MAIN
@@ -243,28 +224,33 @@ def main():
     
     print(f"Display size: {display.width()}x{display.height()}")
     print()
-    
+
+    fb_width = 480
+    fb_height = 854
+    # Create a framebuffer
+    fb = framebuf.FrameBuffer(display.framebuffer(), fb_width, fb_height, framebuf.RGB565)
+
     # Run demos
     while True:
-        demo_colors(display)
+        demo_colours(fb)
         time.sleep(1)
         
-        demo_rectangles(display)
+        demo_rectangles(fb, fb_width, fb_height)
         time.sleep(1)
         
-        demo_lines(display)
+        demo_lines(fb, fb_width, fb_height)
         time.sleep(1)
         
-        demo_gradient(display)
+        #demo_gradient(fb, fb_width, fb_height)
+        #ime.sleep(1)
+        
+        demo_checkerboard(fb, fb_width, fb_height)
         time.sleep(1)
         
-        demo_checkerboard(display)
+        demo_pixels(fb, fb_width, fb_height)
         time.sleep(1)
         
-        demo_pixels(display)
-        time.sleep(1)
-        
-        demo_blit(display)
+        demo_blit(fb, fb_width, fb_height)
         time.sleep(1)
         
         print("\nRestarting demos...\n")
