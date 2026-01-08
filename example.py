@@ -30,7 +30,6 @@ DATA_PINS = [12, 47, 21, 14, 4,  11, 10, 9, 3, 8, 18,  7, 17, 16, 15, 13]
 # HELPER FUNCTIONS
 # =============================================================================
 
-
 def hsv_to_rgb565(h, s, v):
     """Convert HSV to RGB565 (h: 0-360, s: 0-100, v: 0-100)"""
     s = s / 100
@@ -106,7 +105,7 @@ def demo_lines(framebuffer, width, height):
         colour = hsv_to_rgb565(hue, 100, 100)
         framebuffer.hline(0, y, width, colour)
     
-    time.sleep(1)
+    time.sleep(2)
     
     # Vertical lines
     framebuffer.fill(st7701.BLACK)
@@ -115,19 +114,43 @@ def demo_lines(framebuffer, width, height):
         colour = hsv_to_rgb565(hue, 100, 100)
         framebuffer.vline(x, 0, height, colour)
 
-def demo_gradient(framebuffer, width, height):
-    """Draw a gradient using direct framebuffer access"""
+
+def demo_gradient(display, width, height):
+    """Draw a smooth HSV gradient using direct framebuffer access"""
     print("Gradient demo...")
+
+    # Note that this is the display framebuffer, not framebuf used in the other examples
+    fb = display.framebuffer()
     
     for y in range(height):
-        hue = (y * 360) // height
-        colour = hsv_to_rgb565(hue, 100, 100)
+        # Floating point hue 0.0 - 6.0
+        h = (y / (height - 1)) * 6.0
+        sector = int(h)
+        frac = h - sector
         
-        # Write entire row
+        if sector == 0:    
+            r, g, b = 1.0, frac, 0.0
+        elif sector == 1:
+            r, g, b = 1.0 - frac, 1.0, 0.0
+        elif sector == 2:
+            r, g, b = 0.0, 1.0, frac
+        elif sector == 3:
+            r, g, b = 0.0, 1.0 - frac, 1.0
+        elif sector == 4:
+            r, g, b = frac, 0.0, 1.0
+        else:
+            r, g, b = 1.0, 0.0, 1.0 - frac
+        
+        # Convert to RGB565
+        colour = st7701.rgb565(int(r * 255), int(g * 255), int(b * 255))
+        
+        # Write entire row directly to the framebuffer (little-endian)
+        lo = colour & 0xFF
+        hi = (colour >> 8) & 0xFF
         for x in range(width):
             offset = (y * width + x) * 2
-            framebuffer[offset] = colour & 0xFF
-            framebuffer[offset + 1] = (colour >> 8) & 0xFF
+            fb[offset] = lo
+            fb[offset + 1] = hi
         
         # Progress indicator
         if y % 100 == 0:
@@ -152,7 +175,7 @@ def demo_pixels(framebuffer, width, height):
     
     import random
     
-    for _ in range(20000):
+    for _ in range(10000):
         x = random.randint(0, width - 1)
         y = random.randint(0, height - 1)
         colour = hsv_to_rgb565(random.randint(0, 359), 100, 100)
@@ -189,7 +212,7 @@ def demo_blit(framebuffer, width, height):
     framebuffer.fill(st7701.BLACK)
     
     # Animate sprite
-    for frame in range(200):
+    for frame in range(150):
         # Calculate bouncing position
         x = int((width - sprite_w) * (0.5 + 0.5 * (frame / 50 % 2 - 0.5)))
         y = int((height - sprite_h) * abs((frame % 60) - 30) / 30)
@@ -225,33 +248,31 @@ def main():
     print(f"Display size: {display.width()}x{display.height()}")
     print()
 
-    fb_width = 480
-    fb_height = 854
     # Create a framebuffer
-    fb = framebuf.FrameBuffer(display.framebuffer(), fb_width, fb_height, framebuf.RGB565)
+    fb = framebuf.FrameBuffer(display.framebuffer(), display.width(), display.height(), framebuf.RGB565)
 
     # Run demos
     while True:
         demo_colours(fb)
-        time.sleep(1)
+        time.sleep(2)
         
-        demo_rectangles(fb, fb_width, fb_height)
-        time.sleep(1)
+        demo_rectangles(fb, display.width(), display.height())
+        time.sleep(2)
         
-        demo_lines(fb, fb_width, fb_height)
-        time.sleep(1)
+        demo_lines(fb, display.width(), display.height())
+        time.sleep(2)
         
-        #demo_gradient(fb, fb_width, fb_height)
-        #ime.sleep(1)
+        demo_gradient(display, display.width(), display.height())
+        time.sleep(2)
         
-        demo_checkerboard(fb, fb_width, fb_height)
-        time.sleep(1)
+        demo_checkerboard(fb, display.width(), display.height())
+        time.sleep(2)
         
-        demo_pixels(fb, fb_width, fb_height)
-        time.sleep(1)
+        demo_pixels(fb, display.width(), display.height())
+        time.sleep(2)
         
-        demo_blit(fb, fb_width, fb_height)
-        time.sleep(1)
+        demo_blit(fb, display.width(), display.height())
+        time.sleep(2)
         
         print("\nRestarting demos...\n")
 

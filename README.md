@@ -69,8 +69,8 @@ If necessary, you can also flash `bootloader.bin` at `0x0000` and `partition-tab
 ## Hardware Requirements
 
 - **ESP32-S3** with PSRAM (8MB recommended)
-- **ST7701 LCD** 480x854 with RGB interface
-- **27+** GPIO pins available
+- **ST7701 LCD** 480x854 with RGB and SPI interfaces
+- **26** GPIO pins available
 
 ## Pin Connections
 
@@ -93,15 +93,48 @@ If necessary, you can also flash `bootloader.bin` at `0x0000` and `partition-tab
 | D0-D15   | 16-bit data bus (RGB565) |
 
 ### RGB565 Data Pin Order
+
+The pinout for the display listed above is as follows:
+
+| Pin No  | Pin Name | Description               | 
+|---------|----------|------------
+| 1       | LEDA     | Back-light Anode          
+| 2       | LEDK     | Back-light Cathode 
+| 3       | LEDK     | Back-light Cathode 
+| 4       | GND      | Power Ground 
+| 5       | VCC      | Power supply for interface logic circuits(2.8V-3.3V) 
+| 6       | RST      | Reset input pin 
+| 7 - 8   | NC       | NC 
+| 9       | SDA      | Serial data input / output bidirectional pin for SPI. 
+| 10      | SCK      | Serial clock input for SPI Interface. 
+| 11      | CS       | A chip select signal 
+| 12      | PCLK     | Dot clock signal for RGB interface operation 
+| 13      | DE       | Data enable signal for RGB interface operation 
+| 14      | VS       | Frame synchronizing signal for RGB interface operation 
+| 15      | HS       | Line synchronizing signal for RGB interface operation 
+| 16 - 21 | R0-R5    | parallel data bus for RGB Interface . 
+| 22 - 27 | G0-G5    | parallel data bus for RGB Interface . 
+| 28 - 33 | B0-B5    | parallel data bus for RGB Interface . 
+| 34      | GND      | Power Ground 
+| 35      | TP-INT   | NC 
+| 36      | TP-SDA   | NC 
+| 37      | TP-SCL   | NC 
+| 38      | TP-RST   | NC 
+| 39      | TP-VCL   | NC 
+| 40      | GND      | Power Ground
+
+Use this diagram as a guide on how to wire the display to an ESP32:
+![Circuit](/docs/LCDCircuit.jpg)
+
 The `data_pins` list should be ordered:
 ```
-[B0, B1, B2, B3, B4, G0, G1, G2, G3, G4, G5, R0, R1, R2, R3, R4]
+[R0, R1, R2, R3, R4, G0, G1, G2, G3, G4, G5, B0, B1, B2, B3, B4]
 ```
 
 If using 18-bit RGB666 wiring, connect:
-- R0-R4 to LCD R1-R5 (skip R0)
+- R0-R4 to LCD R0-R4 (skip R5)
 - G0-G5 to LCD G0-G5
-- B0-B4 to LCD B1-B5 (skip B0)
+- B0-B4 to LCD B0-B4 (skip B5)
 
 ## Usage
 
@@ -111,21 +144,21 @@ If using 18-bit RGB666 wiring, connect:
 import st7701
 
 # Define your pin configuration
-SPI_CS   = 10
-SPI_CLK  = 12
-SPI_MOSI = 11
-RESET    = 9
-BACKLIGHT = 45  # or -1 if not used
+SPI_CS   = 41
+SPI_CLK  = 42
+SPI_MOSI = 2
+RESET    = 1
+BACKLIGHT = -1
 
-PCLK  = 8
-HSYNC = 47
-VSYNC = 48
-DE    = 3
+PCLK  = 40
+HSYNC = 5
+VSYNC = 38
+DE    = 39
 
-# RGB565 data pins: B0-B4, G0-G5, R0-R4
-DATA_PINS = [15, 7, 6, 5, 4,      # Blue
-             16, 17, 18, 21, 38, 39,  # Green
-             40, 41, 42, 2, 1]        # Red
+# RGB565 data pins: R0-R4, G0-G5, B0-B4
+DATA_PINS = [12, 47, 21, 14, 4,   # Red
+             11, 10, 9, 3, 8, 18, # Green
+             7, 17, 16, 15, 13]   # Blue
 
 # Create display instance
 display = st7701.ST7701(
@@ -137,22 +170,25 @@ display = st7701.ST7701(
 # Initialize the display
 display.init()
 
+# Create a framebuffer
+framebuffer = framebuf.FrameBuffer(display.framebuffer(), display.width(), display.height(), framebuf.RGB565)
+
 # Fill screen with colour
-display.fill(st7701.RED)
+framebuffer.fill(st7701.RED)
 
 # Draw a rectangle
-display.fill_rect(100, 100, 200, 300, st7701.BLUE)
+framebuffer.fill_rect(100, 100, 200, 300, st7701.BLUE)
 
 # Draw lines
-display.hline(0, 427, 480, st7701.WHITE)  # Center horizontal
-display.vline(240, 0, 854, st7701.GREEN)  # Center vertical
+framebuffer.hline(0, 427, 480, st7701.WHITE)  # Center horizontal
+framebuffer.vline(240, 0, 854, st7701.GREEN)  # Center vertical
 
 # Set individual pixel
-display.pixel(50, 50, st7701.WHITE)
+framebuffer.pixel(50, 50, st7701.WHITE)
 
 # Control backlight
-display.backlight(True)   # On
-display.backlight(False)  # Off
+framebuffer.backlight(True)   # On
+framebuffer.backlight(False)  # Off
 ```
 
 ### Using Custom Colors
@@ -161,15 +197,11 @@ display.backlight(False)  # Off
 # RGB565 color format: RRRRRGGGGGGBBBBB
 
 # Using the helper method
-orange = display.color565(255, 165, 0)
-display.fill(orange)
+orange = st7701.color565(255, 165, 0)
+framebuffer.fill(orange)
 
-# Manual calculation
-def rgb565(r, g, b):
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-
-purple = rgb565(128, 0, 128)
-display.fill_rect(0, 0, 100, 100, purple)
+purple = st7701.rgb565(128, 0, 128)
+framebuffer.fill_rect(0, 0, 100, 100, purple)
 ```
 
 ### Blitting Image Data
@@ -188,13 +220,14 @@ for y in range(height):
         buf[offset + 1] = (color >> 8) & 0xFF
 
 # Blit to screen
-display.blit(buf, 50, 50, width, height)
+framebuffer.blit(buf, 50, 50, width, height)
 ```
 
 ### Direct Framebuffer Access
 
 ```python
 # Get memoryview of framebuffer for direct manipulation
+# Note: this is the framebuffer of the display not a framebuf instance
 fb = display.framebuffer()
 
 # Write directly (faster for bulk operations)
@@ -221,17 +254,13 @@ ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
 | Method | Description |
 |--------|-------------|
 | `init()` | Initialize display hardware |
-| `fill(color)` | Fill entire screen |
-| `pixel(x, y, color)` | Set single pixel |
-| `fill_rect(x, y, w, h, color)` | Fill rectangle |
-| `hline(x, y, w, color)` | Draw horizontal line |
-| `vline(x, y, h, color)` | Draw vertical line |
-| `blit(buffer, x, y, w, h)` | Copy buffer to screen |
 | `backlight(on)` | Control backlight (True/False) |
 | `width()` | Get display width (480) |
 | `height()` | Get display height (854) |
 | `framebuffer()` | Get memoryview of framebuffer |
 | `color565(r, g, b)` | Convert RGB888 to RGB565 |
+| `rotate(buffer, w, h, angle)` | Rotate the display data |
+| `swap_bytes(buffer)` | Swap bytes from big-endian to little-endian |
 
 ### Constants
 
