@@ -1,5 +1,5 @@
 /*
- * ST7701 RGB LCD Driver for MicroPython (Minimal)
+ * ST7701 RGB LCD Driver for MicroPython
  * 
  * Hardware setup only - use framebuf for drawing.
  * Targets ESP32-S3 with esp_lcd RGB panel interface.
@@ -279,9 +279,10 @@ static esp_err_t setup_rgb_panel(st7701_obj_t *self) {
     ESP_LOGI(TAG, "Setting up RGB panel %dx%d", self->width, self->height);
     
     esp_lcd_rgb_panel_config_t panel_config = {
-        .clk_src = LCD_CLK_SRC_PLL160M,
+        .clk_src = LCD_CLK_SRC_PLL240M,
+        //.clk_src = LCD_CLK_SRC_PLL160M,
         .timings = {
-            .pclk_hz = 16000000,
+            .pclk_hz = 30000000,
             .h_res = self->width,
             .v_res = self->height,
             .hsync_pulse_width = 10,
