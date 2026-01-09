@@ -144,6 +144,7 @@ There are two types of methods, instance-level and module-level. An instance-lev
 |-------------------------------|----------|-------------|
 |`ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight, pclk, hsync, vsync, de, [data_pins])` | Constructor | Create the initial instance of the display object
 | `init()`                      | Instance | Initialize display hardware |
+| `deinit()`                    | Instance | De-initialise display hardware |
 | `backlight(on)`               | Instance | Control backlight (True/False) |
 | `width()`                     | Instance | Get display width (480) |
 | `height()`                    | Instance | Get display height (854) |
@@ -304,6 +305,7 @@ To adapt for a different ST7701 panel:
 ## License
 
 MIT License - Use freely in your projects.
+
 
 
 
