@@ -129,11 +129,6 @@ Use this diagram as a guide on how to wire the display to an ESP32-S3:
 
 ![Circuit](/docs/LCDCircuit.jpg)
 
-The `data_pins` list should be ordered:
-```
-[R0, R1, R2, R3, R4, G0, G1, G2, G3, G4, G5, B0, B1, B2, B3, B4]
-```
-
 Connect:
 - ESP32 `R0-R4` to LCD `R0-R4` (skip `R5`)
 - ESP32 `G0-G5` to LCD `G0-G5`
@@ -147,7 +142,7 @@ There are two types of methods, instance-level and module-level. An instance-lev
 
 | Method                        | Type     | Description |
 |-------------------------------|----------|-------------|
-|`ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight, pclk, hsync, vsync, de, [data_pins])` | Constructor | Create the initial instamce of the display object
+|`ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight, pclk, hsync, vsync, de, [data_pins])` | Constructor | Create the initial instance of the display object
 | `init()`                      | Instance | Initialize display hardware |
 | `backlight(on)`               | Instance | Control backlight (True/False) |
 | `width()`                     | Instance | Get display width (480) |
