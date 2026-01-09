@@ -261,11 +261,11 @@ fb = display.framebuffer()
 
 # Write directly (faster for bulk operations)
 # Note: This is a flat array of bytes (RGB565 little-endian)
-# Index calculation: offset = (y * 480 + x) * 2
+# Index calculation: offset = (y * width + x) * 2
 
 # Example: Set pixel at (10, 20) to white
 x, y = 10, 20
-offset = (y * 480 + x) * 2
+offset = (y * display.width() + x) * 2
 fb[offset] = 0xFF      # Low byte
 fb[offset + 1] = 0xFF  # High byte (white = 0xFFFF)
 ```
@@ -304,6 +304,7 @@ To adapt for a different ST7701 panel:
 ## License
 
 MIT License - Use freely in your projects.
+
 
 
 
