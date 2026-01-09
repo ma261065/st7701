@@ -38,7 +38,7 @@ def load_image(filename, buffer):
 
 data, w, h = load_image("bliss.raw", img_buf)
 dst_w, dst_h = st7701.rotate(data, w, h, 270)
-fb.blit((data, dst_w, dst_h, framebuf.RGB565), 0, 0)
+framebuffer.blit((data, dst_w, dst_h, framebuf.RGB565), 0, 0)
 
 time.sleep_ms(10000)
 
