@@ -2,10 +2,9 @@
 
 This Micropython driver is designed as a C user module, to be compiled into the Micropython binary. The driver requires ESP-IDF components (specifically the ESP-IDF [esp_lcd](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/lcd/index.html) module) that must be linked at firmware compile time meaning that we cannot make this into a standalone .mpy file.
 
-This driver is specifically configured for **480x854** displays with:
+This driver is specifically configured for **480(w) x 854(h)** displays with:
 - 9-bit SPI for initialization
 - 16-bit RGB565 parallel interface for pixel data
-- PSRAM framebuffer
 
 For example [this display:](https://www.aliexpress.com/item/1005008239425152.html?spm=a2g0o.order_list.order_list_main.11.4ac71802SVVgz5)
 
@@ -105,16 +104,16 @@ The pinout for the display listed above is as follows:
 | 5       | VCC      | Power supply for interface logic circuits(2.8V-3.3V) 
 | 6       | RST      | Reset input pin 
 | 7 - 8   | NC       | NC 
-| 9       | SDA      | Serial data input / output bidirectional pin for SPI. 
+| 9       | SDA      | Serial data input / output bidirectional pin for SPI
 | 10      | SCK      | Serial clock input for SPI Interface. 
 | 11      | CS       | A chip select signal 
 | 12      | PCLK     | Dot clock signal for RGB interface operation 
 | 13      | DE       | Data enable signal for RGB interface operation 
 | 14      | VS       | Frame synchronizing signal for RGB interface operation 
 | 15      | HS       | Line synchronizing signal for RGB interface operation 
-| 16 - 21 | R0-R5    | parallel data bus for RGB Interface . 
-| 22 - 27 | G0-G5    | parallel data bus for RGB Interface . 
-| 28 - 33 | B0-B5    | parallel data bus for RGB Interface . 
+| 16 - 21 | R0-R5    | parallel data bus for RGB Interface
+| 22 - 27 | G0-G5    | parallel data bus for RGB Interface
+| 28 - 33 | B0-B5    | parallel data bus for RGB Interface
 | 34      | GND      | Power Ground 
 | 35      | TP-INT   | NC 
 | 36      | TP-SDA   | NC 
@@ -124,6 +123,7 @@ The pinout for the display listed above is as follows:
 | 40      | GND      | Power Ground
 
 Use this diagram as a guide on how to wire the display to an ESP32:
+
 ![Circuit](/docs/LCDCircuit.jpg)
 
 The `data_pins` list should be ordered:
@@ -131,12 +131,14 @@ The `data_pins` list should be ordered:
 [R0, R1, R2, R3, R4, G0, G1, G2, G3, G4, G5, B0, B1, B2, B3, B4]
 ```
 
-If using 18-bit RGB666 wiring, connect:
+Connect:
 - R0-R4 to LCD R0-R4 (skip R5)
 - G0-G5 to LCD G0-G5
 - B0-B4 to LCD B0-B4 (skip B5)
 
 ## Usage
+
+Note that you can use the MicroPyhon [Framebuffer](https://docs.micropython.org/en/latest/library/framebuf.html) to do drawing (line, pixel, ellipse etc.) on the display. See the examples below, or the more detailed examples in the [examples](https://github.com/ma261065/st7701/tree/main/examples) directory.
 
 ### Basic Example
 
@@ -176,12 +178,12 @@ framebuffer = framebuf.FrameBuffer(display.framebuffer(), display.width(), displ
 # Fill screen with colour
 framebuffer.fill(st7701.RED)
 
-# Draw a rectangle
-framebuffer.fill_rect(100, 100, 200, 300, st7701.BLUE)
+# Draw a filled rectangle
+framebuffer.rect(100, 100, 200, 300, st7701.BLUE, True)
 
 # Draw lines
-framebuffer.hline(0, 427, 480, st7701.WHITE)  # Center horizontal
-framebuffer.vline(240, 0, 854, st7701.GREEN)  # Center vertical
+framebuffer.hline(0, 427, 480, st7701.WHITE)  # Centre horizontal
+framebuffer.vline(240, 0, 854, st7701.GREEN)  # Centre vertical
 
 # Set individual pixel
 framebuffer.pixel(50, 50, st7701.WHITE)
@@ -293,7 +295,7 @@ ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
 ### Flickering/tearing
 1. Enable tearing effect (TE) pin if available
 2. Reduce pixel clock frequency
-3. Use double-buffering (modify `num_fbs = 2`)
+3. Use double-buffering - modify `num_fbs = 2 (will use more memory)
 
 ## Modifying for Different Panels
 
@@ -302,7 +304,6 @@ To adapt for a different ST7701 panel:
 1. **Resolution**: Change `LCD_H_RES` and `LCD_V_RES`
 2. **Init sequence**: Update `st7701_init_sequence()` with vendor's code
 3. **Timing**: Adjust the `timings` struct in `setup_rgb_panel()`
-4. **Color format**: Change `0x3A` register value (0x55=RGB565, 0x60=RGB666)
 
 ## License
 
