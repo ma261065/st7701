@@ -17,9 +17,10 @@ def convert_rgb565(input_file, output_file):
                 # Standard RGB565 packing
                 rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
-                # Big-endian 16-bit write
-                f.write(struct.pack(">H", rgb565))
+                # Little-endian 16-bit write
+                f.write(struct.pack("<H", rgb565))
 
     print(f"Saved {output_file} ({width}x{height})")
 
 convert_rgb565(sys.argv[1], sys.argv[2])
+
