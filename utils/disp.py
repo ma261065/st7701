@@ -31,11 +31,10 @@ def load_rgb565_as_ppm(filename):
     pixels = bytearray()
 
     for i in range(0, expected, 2):
-        pixel = struct.unpack_from(">H", pixel_data, i)[0]
+        pixel = struct.unpack_from("<H", pixel_data, i)[0]
         pixels.extend(rgb565_to_rgb888(pixel))
 
     return header + pixels, width, height
-
 
 
 def main():
