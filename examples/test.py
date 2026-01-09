@@ -65,7 +65,7 @@ framebuffer.fill(st7701.BLUE)
 
 time.sleep(3)
 
-print("Draw white rectangle in center...")
+print("Draw white rectangle in centre...")
 framebuffer.fill(st7701.BLACK)
 w, h = display.width(), display.height()
 framebuffer.rect(w//4, h//4, w//2, h//2, st7701.WHITE, True)
