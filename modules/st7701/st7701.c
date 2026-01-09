@@ -584,7 +584,7 @@ static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(st7701_rotate_obj, 4, 4, st7701_rotat
 
 static const mp_rom_map_elem_t st7701_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init),        MP_ROM_PTR(&st7701_init_obj) },
-    { MP_ROM_QSTR(MP_QSTR_deinit),        MP_ROM_PTR(&st7701_deinit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_deinit),      MP_ROM_PTR(&st7701_deinit_obj) },
     { MP_ROM_QSTR(MP_QSTR_framebuffer), MP_ROM_PTR(&st7701_framebuffer_obj) },
     { MP_ROM_QSTR(MP_QSTR_width),       MP_ROM_PTR(&st7701_width_obj) },
     { MP_ROM_QSTR(MP_QSTR_height),      MP_ROM_PTR(&st7701_height_obj) },
