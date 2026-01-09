@@ -170,6 +170,7 @@ Note that you can use the MicroPyhon [Framebuffer](https://docs.micropython.org/
 
 ```python
 import st7701
+import framebuf
 
 # Define your pin configuration
 SPI_CS   = 41
@@ -215,8 +216,8 @@ framebuffer.vline(240, 0, 854, st7701.GREEN)  # Centre vertical
 framebuffer.pixel(50, 50, st7701.WHITE)
 
 # Control backlight
-framebuffer.backlight(True)   # On
-framebuffer.backlight(False)  # Off
+display.backlight(True)   # On
+display.backlight(False)  # Off
 ```
 
 ### Using Custom Colors
@@ -225,11 +226,11 @@ framebuffer.backlight(False)  # Off
 # RGB565 color format: RRRRRGGGGGGBBBBB
 
 # Using the helper method
-orange = st7701.color565(255, 165, 0)
+orange = st7701.rgb565(255, 165, 0)
 framebuffer.fill(orange)
 
 purple = st7701.rgb565(128, 0, 128)
-framebuffer.fill_rect(0, 0, 100, 100, purple)
+framebuffer.rect(0, 0, 100, 100, purple, True)
 ```
 
 ### Blitting Image Data
@@ -243,12 +244,12 @@ buf = bytearray(width * height * 2)
 for y in range(height):
     for x in range(width):
         offset = (y * width + x) * 2
-        color = display.color565(x * 2, y * 2, 128)
+        color = st7701.rgb565(x * 2, y * 2, 128)
         buf[offset] = color & 0xFF
         buf[offset + 1] = (color >> 8) & 0xFF
 
 # Blit to screen
-framebuffer.blit(buf, 50, 50, width, height)
+framebuffer.blit((buf, width, height, framebuf.RGB565), 50, 50)
 ```
 
 ### Direct Framebuffer Access
@@ -303,6 +304,7 @@ To adapt for a different ST7701 panel:
 ## License
 
 MIT License - Use freely in your projects.
+
 
 
 
