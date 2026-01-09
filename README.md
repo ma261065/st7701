@@ -101,7 +101,7 @@ The pinout for the display listed above is as follows:
 | 2       | LEDK     | Back-light Cathode 
 | 3       | LEDK     | Back-light Cathode 
 | 4       | GND      | Power Ground 
-| 5       | VCC      | Power supply for interface logic circuits(2.8V-3.3V) 
+| 5       | VCC      | Power supply for interface logic circuits (2.8V-3.3V) 
 | 6       | RST      | Reset input pin 
 | 7 - 8   | NC       | NC 
 | 9       | SDA      | Serial data input / output bidirectional pin for SPI
@@ -122,7 +122,10 @@ The pinout for the display listed above is as follows:
 | 39      | TP-VCL   | NC 
 | 40      | GND      | Power Ground
 
-Use this diagram as a guide on how to wire the display to an ESP32:
+<br>
+<br>
+Use this diagram as a guide on how to wire the display to an ESP32-S3:
+
 
 ![Circuit](/docs/LCDCircuit.jpg)
 
@@ -132,9 +135,37 @@ The `data_pins` list should be ordered:
 ```
 
 Connect:
-- R0-R4 to LCD R0-R4 (skip R5)
-- G0-G5 to LCD G0-G5
-- B0-B4 to LCD B0-B4 (skip B5)
+- ESP32 `R0-R4` to LCD `R0-R4` (skip `R5`)
+- ESP32 `G0-G5` to LCD `G0-G5`
+- ESP32 `B0-B4` to LCD `B0-B4` (skip `B5`)
+
+## API Reference
+
+### Methods
+
+There are two types of methods, instance-level and module-level. An instance-level method is called against an instance of the `ST7701` object (e.g. `display = st7701.ST7701(....)` ... `display.width()` , while the module-level methods can be called without an instance (e.g. `st7701.color565(26, 42, 5)`) 
+
+| Method                        | Type     | Description |
+|-------------------------------|----------|-------------|
+|`ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight, pclk, hsync, vsync, de, [data_pins])` | Constructor | Create the initial instamce of the display object
+| `init()`                      | Instance | Initialize display hardware |
+| `backlight(on)`               | Instance | Control backlight (True/False) |
+| `width()`                     | Instance | Get display width (480) |
+| `height()`                    | Instance | Get display height (854) |
+| `framebuffer()`               | Instance | Get memoryview of framebuffer |
+| `color565(r, g, b)`           | Module   | Convert RGB888 to RGB565 |
+| `rotate(buffer, w, h, angle)` | Module   | Rotate the display data 90, 180 or 270 degrees|
+| `swap_bytes(buffer)`          | Module   | Swap bytes between big-endian and little-endian |
+
+### Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `BLACK`  | 0x0000 | Black |
+| `WHITE`  | 0xFFFF | White |
+| `RED`    | 0xF800 | Red |
+| `GREEN`  | 0x07E0 | Green |
+| `BLUE`   | 0x001F | Blue |
 
 ## Usage
 
@@ -242,37 +273,6 @@ offset = (y * 480 + x) * 2
 fb[offset] = 0xFF      # Low byte
 fb[offset + 1] = 0xFF  # High byte (white = 0xFFFF)
 ```
-
-## API Reference
-
-### Constructor
-```python
-ST7701(spi_cs, spi_clk, spi_mosi, reset, backlight,
-        pclk, hsync, vsync, de, data_pins)
-```
-
-### Methods
-
-| Method | Description |
-|--------|-------------|
-| `init()` | Initialize display hardware |
-| `backlight(on)` | Control backlight (True/False) |
-| `width()` | Get display width (480) |
-| `height()` | Get display height (854) |
-| `framebuffer()` | Get memoryview of framebuffer |
-| `color565(r, g, b)` | Convert RGB888 to RGB565 |
-| `rotate(buffer, w, h, angle)` | Rotate the display data |
-| `swap_bytes(buffer)` | Swap bytes from big-endian to little-endian |
-
-### Constants
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `BLACK`  | 0x0000 | Black |
-| `WHITE`  | 0xFFFF | White |
-| `RED`    | 0xF800 | Red |
-| `GREEN`  | 0x07E0 | Green |
-| `BLUE`   | 0x001F | Blue |
 
 ## Troubleshooting
 
